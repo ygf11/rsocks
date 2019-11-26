@@ -101,6 +101,16 @@ pub fn parse_auth_select_reply_packet(data: &[u8]) -> Result<AuthSelectReply, &'
     Ok(result)
 }
 
+impl AuthSelectReply{
+    pub fn version(&self) -> &Version{
+        &self.version
+    }
+
+    pub fn auth_type(&self) -> &AuthType {
+        &self.method
+    }
+}
+
 /// this packet is for target destination service request from client
 pub struct DstServiceRequest {
     version: Version,
