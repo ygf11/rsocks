@@ -2,6 +2,7 @@ use crate::protocol::packet::SessionStage::AuthSelect;
 use crate::protocol::packet::AuthType::{Non, Gssapi, NamePassword, IanaAssigned, Reserved, NonAccept};
 use crate::protocol::packet::CmdType::{Connect, Bind, Udp};
 use crate::protocol::packet::AddressType::{Ipv4, Domain, Ipv6};
+use std::panic::resume_unwind;
 
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
@@ -101,7 +102,7 @@ impl AuthSelectReply {
 pub struct DstServiceRequest {
     version: Version,
     cmd: CmdType,
-    rev: u8,
+    reserve: u8,
     address_type: AddressType,
     address: String,
     port: u16,
@@ -120,25 +121,41 @@ pub fn parse_dst_service_request(data: &[u8]) -> Result<DstServiceRequest, &str>
         None => 0
     };
 
-    let addr_type = parse_address_type(data.get(3).cloned())?;
+    let address_type = parse_address_type(data.get(3).cloned())?;
+    let (address, port) = parse_dst_address(&data[4..data.len()], &address_type)?;
 
-    Err("err")
+    let result = DstServiceRequest {
+        version,
+        cmd,
+        reserve,
+        address_type,
+        address,
+        port,
+    };
+
+    Ok(result)
 }
 
-fn parse_dst_address(data: &[u8], addr_type: AddressType) -> Result<String, &str> {
+pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String, u16), &'static str> {
     let len = data.len();
     match addr_type {
         Ipv4 => {
             if len < 4 {
                 return Err("data not enough in ipv4 type.");
             }
-            parse_address_from_bytes(data.get(0..4).unwrap())
+            let res = data.get(0..4).unwrap();
+            let address = get_ipv4_from_bytes(data.get(0..4).unwrap())?;
+            let port: u16 = get_port(data.get(5..6).unwrap())?;
+            Ok((address, port))
         }
         Ipv6 => {
             if len < 16 {
                 return Err("data not enough in ipv6 type.");
             }
-            parse_address_from_bytes(data.get(0..16).unwrap())
+            let address = get_ipv6_from_bytes(data.get(0..16).unwrap())?;
+            let port = get_port(data.get(17..18).unwrap())?;
+            //let port: u16 = (data[17] as u16 | (data[18] as u16) << 8);
+            Ok((address, port))
         }
         Domain => {
             let addr_len = usize::from(data.get(0).cloned().unwrap());
@@ -146,16 +163,51 @@ fn parse_dst_address(data: &[u8], addr_type: AddressType) -> Result<String, &str
                 return Err("data not enough in domain type.");
             }
             let byte_array = data.get(1..addr_len + 1).unwrap();
-            parse_address_from_bytes(byte_array)
+            let address = get_domain_from_bytes(byte_array)?;
+            let port = get_port(data.get(addr_len + 1..addr_len + 2).unwrap())?;
+            // let port: u16 = (data[addr_len + 1] as u16 | (data[addr_len + 2] as u16) << 8);
+            Ok((address, port))
         }
     }
 }
 
-fn parse_address_from_bytes(bytes: &[u8]) -> Result<String, &str> {
+pub fn get_domain_from_bytes(bytes: &[u8]) -> Result<String, &'static str> {
     match std::str::from_utf8(bytes) {
         Ok(addr) => Ok(String::from(addr)),
         Err(e) => Err("err from bytes to utf8 string.")
     }
+}
+
+pub fn get_ipv4_from_bytes(bytes: &[u8]) -> Result<String, &'static str> {
+    let first = bytes[0].to_string();
+    let second = bytes[1].to_string();
+    let third = bytes[2].to_string();
+    let forth = bytes[3].to_string();
+
+    let mut result = String::new();
+    result.push_str(first.as_str());
+    result.push('.');
+    result.push_str(second.as_str());
+    result.push('.');
+    result.push_str(third.as_str());
+    result.push('.');
+    result.push_str(forth.as_str());
+
+    Ok(result)
+}
+
+pub fn get_ipv6_from_bytes(bytes: &[u8]) -> Result<String, &'static str> {
+    // todo parse bytes to ipv6
+    Ok(String::new())
+}
+
+pub fn get_port(bytes: &[u8]) -> Result<u16, &'static str> {
+    let first = bytes[0].clone();
+    let second = bytes[1].clone();
+
+    let port = (first as u16 | (second as u16) << 8);
+
+    Ok(port)
 }
 
 
@@ -176,7 +228,7 @@ pub enum Version {
     Others,
 }
 
-fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
+pub fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
     match version {
         Some(5) => Ok(Version::Socks5),
         Some(_) => Ok(Version::Others),
@@ -195,7 +247,7 @@ pub enum AuthType {
     NonAccept,
 }
 
-fn parse_auth_type(auth: Option<u8>) -> Result<AuthType, &'static str> {
+pub fn parse_auth_type(auth: Option<u8>) -> Result<AuthType, &'static str> {
     match auth {
         Some(0) => Ok(Non),
         Some(1) => Ok(Gssapi),
@@ -214,7 +266,7 @@ pub enum CmdType {
     Udp,
 }
 
-fn parse_cmd(cmd: Option<u8>) -> Result<CmdType, &'static str> {
+pub fn parse_cmd(cmd: Option<u8>) -> Result<CmdType, &'static str> {
     match cmd {
         Some(1) => Ok(Connect),
         Some(2) => Ok(Bind),
