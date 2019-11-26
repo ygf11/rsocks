@@ -1,51 +1,77 @@
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
 struct AuthSelectRequest {
-    version: u8,
+    version: Version,
     n_methods: u8,
-    methods: Vec<u8>,
+    methods: Vec<AuthType>,
 }
 
 /// this packet is for authentication method selecting reply from server
 struct AuthSelectReply {
-    version: u8,
-    method: u8,
+    version: Version,
+    method: AuthType,
 }
 
 /// this packet is for target destination service request from client
 struct DstServiceRequest {
-    version: u8,
-    cmd: u8,
+    version: Version,
+    cmd: CmdType,
     rev: u8,
-    address_type: u8,
-    address: Vec<u8>,
+    address_type: AddressType,
+    address: String,
     port: u16,
 }
 
 /// his packet is for target destination service request from server
 struct DstServiceReply {
-    version: u8,
-    reply: u8,
+    version: Version,
+    reply: ReplyType,
     rsv: u8,
-    address_type: u8,
-    address: Vec<u8>,
+    address_type: AddressType,
+    address: String,
     port: u16,
 }
 
 /// socks version
-enum Version{
-    SOCKS5,
-    OTHERS,
+enum Version {
+    Socks5,
+    Others,
 }
 
-enum AuthType{
-    NON,
-    GSSAPI,
-    NAME_PASSWORD,
-    IANA_ASSIGNED,
-    RESERVED,
-    NON_ACCEPT,
+/// auth type enum
+enum AuthType {
+    Non,
+    Gssapi,
+    NamePassword,
+    IanaAssigned,
+    Reserved,
+    NonAccept,
 }
 
+/// cmd type enum
+enum CmdType {
+    Connect,
+    Bind,
+    Udp,
+}
 
+/// address type enum
+enum AddressType {
+    Ipv4,
+    Domain,
+    Ipv6,
+}
+
+/// reply type enum
+enum ReplyType {
+    Success,
+    ServerFailure,
+    ConnectionNotAllowed,
+    NetWorkUnReachable,
+    ConnectionRefuse,
+    TTLExpired,
+    CmdNotSupport,
+    AddressTypeNotSupport,
+    Others,
+}
 
