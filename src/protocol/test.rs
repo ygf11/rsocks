@@ -11,7 +11,7 @@ mod test {
 
         println!("value:{:?}", packets);
 
-        let result = packet::parseAuthSelectRequest(&packets);
+        let result = packet::parse_auth_select_request_packet(&packets);
 
         match result {
             Ok(request) => {
@@ -35,7 +35,7 @@ mod test {
 
         println!("value:{:?}", packets);
 
-        let result = packet::parseAuthSelectRequest(&packets);
+        let result = packet::parse_auth_select_request_packet(&packets);
 
         match result {
             Ok(request) => {
@@ -60,7 +60,7 @@ mod test {
 
         println!("value:{:?}", packets);
 
-        let result = packet::parseAuthSelectRequest(&packets);
+        let result = packet::parse_auth_select_request_packet(&packets);
 
         match result {
             Ok(request) => {
