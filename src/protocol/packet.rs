@@ -143,9 +143,8 @@ pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String
             if len < 4 {
                 return Err("data not enough in ipv4 type.");
             }
-            let res = data.get(0..4).unwrap();
             let address = get_ipv4_from_bytes(data.get(0..4).unwrap())?;
-            let port: u16 = get_port(data.get(5..6).unwrap())?;
+            let port: u16 = get_port(data.get(4..6).unwrap())?;
             Ok((address, port))
         }
         Ipv6 => {
@@ -202,6 +201,7 @@ pub fn get_ipv6_from_bytes(bytes: &[u8]) -> Result<String, &'static str> {
 }
 
 pub fn get_port(bytes: &[u8]) -> Result<u16, &'static str> {
+    let len = bytes.len();
     let first = bytes[0].clone();
     let second = bytes[1].clone();
 
