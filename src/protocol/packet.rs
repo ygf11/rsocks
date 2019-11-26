@@ -1,15 +1,15 @@
-use std::path::Prefix::VerbatimUNC;
 use crate::protocol::packet::SessionStage::AuthSelect;
 
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
-struct AuthSelectRequest {
+#[derive(Debug, PartialEq)]
+pub struct AuthSelectRequest {
     version: Version,
     n_methods: u8,
     methods: Vec<AuthType>,
 }
 
-fn parse(data: &[u8]) -> Result<AuthSelectRequest, &str> {
+pub fn parseAuthSelectRequest(data: &[u8]) -> Result<AuthSelectRequest, &str> {
     let len = data.len();
     // version
     let version = match data.get(0) {
@@ -24,7 +24,7 @@ fn parse(data: &[u8]) -> Result<AuthSelectRequest, &str> {
     let mut i = 0;
     let mut methods = Vec::<AuthType>::new();
     while i < num {
-        let index = usize::from(2+ i);
+        let index = usize::from(2 + i);
         let method = match data.get(index) {
             Some(0) => AuthType::Non,
             Some(1) => AuthType::Gssapi,
@@ -42,7 +42,7 @@ fn parse(data: &[u8]) -> Result<AuthSelectRequest, &str> {
     // verify
     let total: usize = usize::from(2 + n_methods);
     if data.len() != total {
-        return Err("too many data.")
+        return Err("too many data.");
     }
 
     let result = AuthSelectRequest {
@@ -54,14 +54,28 @@ fn parse(data: &[u8]) -> Result<AuthSelectRequest, &str> {
     Ok(result)
 }
 
+impl AuthSelectRequest {
+    pub fn version(&self) -> &Version {
+        &self.version
+    }
+
+    pub fn n_methods(&self) -> u8 {
+        self.n_methods
+    }
+
+    pub fn methods(&self) -> &Vec<AuthType> {
+        &self.methods
+    }
+}
+
 /// this packet is for authentication method selecting reply from server
-struct AuthSelectReply {
+pub struct AuthSelectReply {
     version: Version,
     method: AuthType,
 }
 
 /// this packet is for target destination service request from client
-struct DstServiceRequest {
+pub struct DstServiceRequest {
     version: Version,
     cmd: CmdType,
     rev: u8,
@@ -71,7 +85,7 @@ struct DstServiceRequest {
 }
 
 /// his packet is for target destination service request from server
-struct DstServiceReply {
+pub struct DstServiceReply {
     version: Version,
     reply: ReplyType,
     rsv: u8,
@@ -81,13 +95,15 @@ struct DstServiceReply {
 }
 
 /// socks version
-enum Version {
+#[derive(Debug, PartialEq)]
+pub enum Version {
     Socks5,
     Others,
 }
 
 /// auth type enum
-enum AuthType {
+#[derive(Debug, PartialEq)]
+pub enum AuthType {
     Non,
     Gssapi,
     NamePassword,
@@ -97,21 +113,22 @@ enum AuthType {
 }
 
 /// cmd type enum
-enum CmdType {
+pub enum CmdType {
     Connect,
     Bind,
     Udp,
 }
 
 /// address type enum
-enum AddressType {
+#[derive(Debug, PartialEq)]
+pub enum AddressType {
     Ipv4,
     Domain,
     Ipv6,
 }
 
 /// reply type enum
-enum ReplyType {
+pub enum ReplyType {
     Success,
     ServerFailure,
     ConnectionNotAllowed,
@@ -124,7 +141,7 @@ enum ReplyType {
 }
 
 /// session状态
-enum SessionStage {
+pub enum SessionStage {
     Init,
     AuthSelect,
     AuthSelectFinish,
