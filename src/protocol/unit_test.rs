@@ -150,7 +150,7 @@ mod unit_test {
 
         let result = parse_user_auth_request(&bytes);
 
-        match result{
+        match result {
             Ok(request) => {
                 assert_eq!(SubVersion::V0, *request.version());
                 assert_eq!(13 as u8, request.u_len());
@@ -165,22 +165,17 @@ mod unit_test {
 
     #[test]
     fn parse_user_auth_reply_success() {
-        let bytes = [0, 13, 109, 105, 111, 45, 97, 110, 100, 45, 116, 111, 107, 105, 111
-            , 6, 49, 50, 51, 52, 53, 54];
+        let bytes = [0, 0];
 
-        let result = parse_user_auth_request(&bytes);
+        let result = parse_user_auth_reply(&bytes);
 
-        match result{
-            Ok(request) => {
-                assert_eq!(SubVersion::V0, *request.version());
-                assert_eq!(13 as u8, request.u_len());
-                assert_eq!("mio-and-tokio", request.name());
-                assert_eq!(6, request.p_len());
-                assert_eq!("123456", request.password());
+        match result {
+            Ok(reply) => {
+                assert_eq!(SubVersion::V0, *reply.version());
+                assert_eq!(AuthResult::Success, *reply.status());
             }
 
             _ => unreachable!()
         }
     }
-
 }

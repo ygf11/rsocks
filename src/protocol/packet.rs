@@ -449,6 +449,7 @@ fn parse_address_type(addr_type: Option<u8>) -> Result<AddressType, &'static str
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum AuthResult {
     Success,
     Failure,
@@ -464,6 +465,7 @@ fn parse_auth_result(result: Option<u8>) -> Result<AuthResult, &'static str> {
 }
 
 /// reply type enum
+#[derive(Debug, PartialEq)]
 pub enum ReplyType {
     Success,
     ServerFailure,
