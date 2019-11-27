@@ -257,16 +257,16 @@ pub struct UserPassAuthRequest {
     password: String,
 }
 
-impl UserPassAuthRequest{
-    pub fn version(&self) -> &SubVersion{
+impl UserPassAuthRequest {
+    pub fn version(&self) -> &SubVersion {
         &self.version
     }
 
-    pub fn u_len(&self) -> u8{
+    pub fn u_len(&self) -> u8 {
         self.u_len
     }
 
-    pub fn name(&self) -> &String{
+    pub fn name(&self) -> &String {
         &self.name
     }
 
@@ -274,10 +274,11 @@ impl UserPassAuthRequest{
         self.p_len
     }
 
-    pub fn password(&self) -> &String{
+    pub fn password(&self) -> &String {
         &self.password
     }
 }
+
 
 pub fn parse_user_auth_request(data: &[u8]) -> Result<UserPassAuthRequest, &'static str> {
     let len = data.len();
@@ -329,6 +330,36 @@ pub fn parse_string_from_bytes(data: &[u8]) -> Result<String, &'static str> {
     }
 }
 
+pub struct UserPassAuthReply {
+    version: SubVersion,
+    status: AuthResult,
+}
+
+impl UserPassAuthReply {
+    pub fn version(&self) -> &SubVersion {
+        &self.version
+    }
+
+    pub fn status(&self) -> &AuthResult {
+        &self.status
+    }
+}
+
+pub fn parse_user_auth_reply(data: &[u8]) -> Result<UserPassAuthReply, &'static str> {
+    let len = data.len();
+    if len != 2 {
+        return Err("data not enough.");
+    }
+
+    let version = parse_sub_version(data.get(0).cloned())?;
+    let status = parse_auth_result(data.get(1).cloned())?;
+    let result = UserPassAuthReply {
+        version,
+        status,
+    };
+
+    Ok(result)
+}
 
 /// socks version
 #[derive(Debug, PartialEq)]
@@ -415,6 +446,20 @@ fn parse_address_type(addr_type: Option<u8>) -> Result<AddressType, &'static str
         Some(3) => Ok(Domain),
         Some(4) => Ok(Ipv6),
         _ => Err("address type not support.")
+    }
+}
+
+pub enum AuthResult {
+    Success,
+    Failure,
+}
+
+
+fn parse_auth_result(result: Option<u8>) -> Result<AuthResult, &'static str> {
+    match result {
+        Some(0) => Ok(AuthResult::Success),
+        Some(_) => Ok(AuthResult::Failure),
+        _ => Err("auth reply is empty.")
     }
 }
 
