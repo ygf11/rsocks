@@ -1,7 +1,6 @@
 mod unit_test {
     use crate::protocol::packet;
-    use crate::protocol::packet::{parse_version, Version, AddressType, get_ipv4_from_bytes
-                                  , get_domain_from_bytes, get_port, parse_dst_address};
+    use crate::protocol::packet::*;
     use crate::protocol::packet::AuthType::Non;
     use crate::protocol::packet::AddressType::{Ipv4, Domain};
 
@@ -99,16 +98,49 @@ mod unit_test {
     fn get_dst_domain_address_success() {
         let domain = "www.baidu.com";
         let mut bytes = [13, 119, 119,
-            119, 46, 98, 97, 105, 100, 117, 46, 99, 111, 109,1, 1];
+            119, 46, 98, 97, 105, 100, 117, 46, 99, 111, 109, 1, 1];
 
         let result = parse_dst_address(&bytes, &Domain);
 
-        match result{
-            Ok((address,port)) => {
+        match result {
+            Ok((address, port)) => {
                 assert_eq!("www.baidu.com", address);
                 assert_eq!(257, port);
             }
             Err(e) => unreachable!()
         }
     }
+
+    #[test]
+    fn parse_len_and_string_success() {
+        let mut bytes = [13, 109, 105, 111, 45, 97, 110, 100, 45, 116, 111, 107, 105, 111];
+
+        let result = parse_len_and_string(&bytes);
+
+        match result {
+            Ok((len, name)) => {
+                assert_eq!(13 as u8, len);
+                assert_eq!("mio-and-tokio", name);
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_len_and_string_failed() {
+        let mut bytes = [];
+
+        let result = parse_len_and_string(&bytes);
+
+        match result {
+            Ok((len, name)) => {
+                assert_eq!(13 as u8, len);
+                assert_eq!("mio-and-tokio", name);
+            }
+
+            Err(msg) => assert_eq!("data is not enough.", msg)
+        }
+    }
+
 }

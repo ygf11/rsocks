@@ -257,23 +257,50 @@ pub struct UserPassAuthRequest {
     password: String,
 }
 
-pub fn parse_user_auth_request(data:&[u8]) -> Result<UserPassAuthRequest, &'static str>{
+pub fn parse_user_auth_request(data: &[u8]) -> Result<UserPassAuthRequest, &'static str> {
     let len = data.len();
     if len < 2 {
-        return Err("data not enough when parsing auth request.")
+        return Err("data not enough when parsing auth request.");
     }
 
     let version = parse_sub_version(data.get(0).cloned())?;
-    let u_len = match data.get(1).cloned(){
-        Some(size)  => Ok(size),
-        None => Err("u_len is none")
-    }?;
+    let (u_len, name) = parse_len_and_string(&data[1..])?;
+    let start = usize::from(2 + u_len);
+    let (p_len, password) = parse_len_and_string(&data[start..])?;
 
-    Err("err")
+    let result = UserPassAuthRequest {
+        version,
+        u_len,
+        name,
+        p_len,
+        password,
+    };
 
+    Ok(result)
 }
 
-pub fn parse_string_from_bytes(data:&[u8]) -> Result<String, &'static str>{
+pub fn parse_len_and_string(data: &[u8]) -> Result<(u8, String), &'static str> {
+    let total = data.len();
+    if total == 0 {
+        return Err("data is not enough.");
+    }
+
+    let len = match data.get(0).cloned() {
+        Some(size) => Ok(size),
+        None => Err("len is none")
+    }?;
+
+    if total < usize::from(1 + len) {
+        return Err("data is not enough.");
+    }
+
+    let end = usize::from(len + 1);
+    let name = parse_string_from_bytes(data.get(1..end).unwrap())?;
+
+    Ok((len, name))
+}
+
+pub fn parse_string_from_bytes(data: &[u8]) -> Result<String, &'static str> {
     match std::str::from_utf8(data) {
         Ok(addr) => Ok(String::from(addr)),
         Err(e) => Err("err from bytes to utf8 string.")
@@ -295,8 +322,6 @@ pub enum SubVersion {
 }
 
 
-
-
 pub fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
     match version {
         Some(5) => Ok(Version::Socks5),
@@ -305,7 +330,7 @@ pub fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
     }
 }
 
-fn parse_sub_version(version:Option<u8>) -> Result<SubVersion, &'static str> {
+fn parse_sub_version(version: Option<u8>) -> Result<SubVersion, &'static str> {
     match version {
         Some(0) => Ok(V0),
         Some(_) => Ok(SubVersion::Others),
