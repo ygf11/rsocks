@@ -1,9 +1,9 @@
 use crate::protocol::packet::SessionStage::AuthSelect;
-use crate::protocol::packet::AuthType::{Non, Gssapi, NamePassword, IanaAssigned, Reserved, NonAccept};
+use crate::protocol::packet::AuthType::*;
 use crate::protocol::packet::CmdType::{Connect, Bind, Udp};
 use crate::protocol::packet::AddressType::{Ipv4, Domain, Ipv6};
-use crate::protocol::packet::ReplyType::{Success, ServerFailure, ConnectionNotAllowed,
-                                         NetWorkUnReachable, HostUnreachable, ConnectionRefuse, TTLExpired, CmdNotSupport, AddressTypeNotSupport, Others};
+use crate::protocol::packet::ReplyType::*;
+use crate::protocol::packet::SubVersion::*;
 
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
@@ -27,7 +27,7 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
     let n_methods = data.get(1).cloned().unwrap();
     let num = n_methods;
 
-    // verify
+    // verify data len
     let total: usize = usize::from(2 + n_methods);
     if data.len() != total {
         return Err("data length not right.");
@@ -173,10 +173,7 @@ pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String
 }
 
 pub fn get_domain_from_bytes(bytes: &[u8]) -> Result<String, &'static str> {
-    match std::str::from_utf8(bytes) {
-        Ok(addr) => Ok(String::from(addr)),
-        Err(e) => Err("err from bytes to utf8 string.")
-    }
+    parse_string_from_bytes(bytes)
 }
 
 pub fn get_ipv4_from_bytes(bytes: &[u8]) -> Result<String, &'static str> {
@@ -252,12 +249,53 @@ pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static 
     Ok(result)
 }
 
+pub struct UserPassAuthRequest {
+    version: SubVersion,
+    u_len: u8,
+    name: String,
+    p_len: u8,
+    password: String,
+}
+
+pub fn parse_user_auth_request(data:&[u8]) -> Result<UserPassAuthRequest, &'static str>{
+    let len = data.len();
+    if len < 2 {
+        return Err("data not enough when parsing auth request.")
+    }
+
+    let version = parse_sub_version(data.get(0).cloned())?;
+    let u_len = match data.get(1).cloned(){
+        Some(size)  => Ok(size),
+        None => Err("u_len is none")
+    }?;
+
+    Err("err")
+
+}
+
+pub fn parse_string_from_bytes(data:&[u8]) -> Result<String, &'static str>{
+    match std::str::from_utf8(data) {
+        Ok(addr) => Ok(String::from(addr)),
+        Err(e) => Err("err from bytes to utf8 string.")
+    }
+}
+
+
 /// socks version
 #[derive(Debug, PartialEq)]
 pub enum Version {
     Socks5,
     Others,
 }
+
+/// sub negotiation version
+pub enum SubVersion {
+    V0,
+    Others,
+}
+
+
+
 
 pub fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
     match version {
@@ -266,6 +304,15 @@ pub fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
         None => Err("empty version num.")
     }
 }
+
+fn parse_sub_version(version:Option<u8>) -> Result<SubVersion, &'static str> {
+    match version {
+        Some(0) => Ok(V0),
+        Some(_) => Ok(SubVersion::Others),
+        None => Err("empty sub version num.")
+    }
+}
+
 
 /// auth type enum
 #[derive(Debug, PartialEq)]
@@ -348,7 +395,7 @@ fn parse_reply_type(reply_type: Option<u8>) -> Result<ReplyType, &'static str> {
         Some(6) => Ok(TTLExpired),
         Some(7) => Ok(CmdNotSupport),
         Some(8) => Ok(AddressTypeNotSupport),
-        Some(9) => Ok(Others),
+        Some(9) => Ok(ReplyType::Others),
         _ => Err("reply type not support.")
     }
 }
