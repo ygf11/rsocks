@@ -1,8 +1,6 @@
 mod unit_test {
-    use crate::protocol::packet;
-    use crate::protocol::packet::*;
-    use crate::protocol::packet::AuthType::Non;
-    use crate::protocol::packet::AddressType::{Ipv4, Domain};
+    use crate::packet::*;
+    use crate::packet::AddressType::{Ipv4, Domain};
 
     #[test]
     fn parse_version_socks5_success() {

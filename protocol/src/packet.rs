@@ -1,9 +1,8 @@
-use crate::protocol::packet::SessionStage::AuthSelect;
-use crate::protocol::packet::AuthType::*;
-use crate::protocol::packet::CmdType::{Connect, Bind, Udp};
-use crate::protocol::packet::AddressType::{Ipv4, Domain, Ipv6};
-use crate::protocol::packet::ReplyType::*;
-use crate::protocol::packet::SubVersion::*;
+use crate::packet::ReplyType::*;
+use crate::packet::AddressType::{Ipv4, Domain, Ipv6};
+use crate::packet::CmdType::{Connect, Bind, Udp};
+use crate::packet::AuthType::*;
+use crate::packet::SubVersion::V0;
 
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
