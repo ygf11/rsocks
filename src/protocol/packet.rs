@@ -2,7 +2,8 @@ use crate::protocol::packet::SessionStage::AuthSelect;
 use crate::protocol::packet::AuthType::{Non, Gssapi, NamePassword, IanaAssigned, Reserved, NonAccept};
 use crate::protocol::packet::CmdType::{Connect, Bind, Udp};
 use crate::protocol::packet::AddressType::{Ipv4, Domain, Ipv6};
-use std::panic::resume_unwind;
+use crate::protocol::packet::ReplyType::{Success, ServerFailure, ConnectionNotAllowed,
+                                         NetWorkUnReachable, HostUnreachable, ConnectionRefuse, TTLExpired, CmdNotSupport, AddressTypeNotSupport, Others};
 
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
@@ -111,7 +112,7 @@ pub struct DstServiceRequest {
 pub fn parse_dst_service_request(data: &[u8]) -> Result<DstServiceRequest, &str> {
     let len = data.len();
     if len < 4 {
-        return Err("data not enough");
+        return Err("data not enough in dst request packet.");
     }
 
     let version = parse_version(data.get(0).cloned())?;
@@ -216,10 +217,39 @@ pub fn get_port(bytes: &[u8]) -> Result<u16, &'static str> {
 pub struct DstServiceReply {
     version: Version,
     reply: ReplyType,
-    rsv: u8,
+    reserve: u8,
     address_type: AddressType,
     address: String,
     port: u16,
+}
+
+pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static str> {
+    let len = data.len();
+    if len < 4 {
+        return Err("data not enough in dst reply packet.");
+    }
+
+    let version = parse_version(data.get(0).cloned())?;
+    let reply = parse_reply_type(data.get(1).cloned())?;
+    let reserve = match data.get(2).cloned() {
+        Some(num) => num,
+        None => 0
+    };
+
+    let address_type = parse_address_type(data.get(3).cloned())?;
+    let (address, port) = parse_dst_address(&data[4..data.len()],
+                                            &address_type)?;
+
+    let result = DstServiceReply {
+        version,
+        reply,
+        reserve,
+        address_type,
+        address,
+        port,
+    };
+
+    Ok(result)
 }
 
 /// socks version
@@ -299,11 +329,28 @@ pub enum ReplyType {
     ServerFailure,
     ConnectionNotAllowed,
     NetWorkUnReachable,
+    HostUnreachable,
     ConnectionRefuse,
     TTLExpired,
     CmdNotSupport,
     AddressTypeNotSupport,
     Others,
+}
+
+fn parse_reply_type(reply_type: Option<u8>) -> Result<ReplyType, &'static str> {
+    match reply_type {
+        Some(0) => Ok(Success),
+        Some(1) => Ok(ServerFailure),
+        Some(2) => Ok(ConnectionNotAllowed),
+        Some(3) => Ok(NetWorkUnReachable),
+        Some(4) => Ok(HostUnreachable),
+        Some(5) => Ok(ConnectionRefuse),
+        Some(6) => Ok(TTLExpired),
+        Some(7) => Ok(CmdNotSupport),
+        Some(8) => Ok(AddressTypeNotSupport),
+        Some(9) => Ok(Others),
+        _ => Err("reply type not support.")
+    }
 }
 
 /// session状态
