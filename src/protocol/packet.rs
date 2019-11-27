@@ -257,6 +257,28 @@ pub struct UserPassAuthRequest {
     password: String,
 }
 
+impl UserPassAuthRequest{
+    pub fn version(&self) -> &SubVersion{
+        &self.version
+    }
+
+    pub fn u_len(&self) -> u8{
+        self.u_len
+    }
+
+    pub fn name(&self) -> &String{
+        &self.name
+    }
+
+    pub fn p_len(&self) -> u8 {
+        self.p_len
+    }
+
+    pub fn password(&self) -> &String{
+        &self.password
+    }
+}
+
 pub fn parse_user_auth_request(data: &[u8]) -> Result<UserPassAuthRequest, &'static str> {
     let len = data.len();
     if len < 2 {
@@ -316,6 +338,7 @@ pub enum Version {
 }
 
 /// sub negotiation version
+#[derive(Debug, PartialEq)]
 pub enum SubVersion {
     V0,
     Others,
