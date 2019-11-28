@@ -1,19 +1,24 @@
+extern crate protocol;
+
 use mio::{Poll, Token, Ready, PollOpt};
 use std::net::{TcpListener, SocketAddr, TcpStream, IpAddr, Ipv4Addr};
 use std::rc::Rc;
+use protocol::packet::ServerStage;
 
-struct Server {
+struct ServerHandler {
     address: Vec<u8>,
     port: u16,
     listener: Option<TcpListener>,
+    stage: ServerStage,
 }
 
-impl Server {
-    fn new(address: Vec<u8>, port: u16) -> Server {
-        Server {
+impl ServerHandler {
+    fn new(address: Vec<u8>, port: u16) -> ServerHandler {
+        ServerHandler {
             address,
             port,
             listener: None,
+            stage: ServerStage::Init,
         }
     }
 
@@ -39,25 +44,44 @@ impl Server {
     fn accept(&mut self) -> Result<TcpStream, &'static str> {
         let (socket, remote) =
             match self.listener.as_ref().unwrap().accept() {
-            Ok(stream) => Ok(stream),
-            Err(err) => Err("connect failed."),
-        }?;
+                Ok(stream) => Ok(stream),
+                Err(err) => Err("connect failed."),
+            }?;
 
         Ok(socket)
     }
 }
 
-struct Client {
+struct ChildHandler {
+    socket: TcpStream,
+    stage: ServerStage,
+}
+
+impl ChildHandler {
+    fn new(socket: TcpStream) -> ChildHandler {
+        ChildHandler {
+            socket,
+            stage: ServerStage::Init,
+        }
+    }
+
+    fn handle(&self) -> Result<Token, &'static str> {
+        Err("err")
+    }
+}
+
+struct ClientHandler {
     address: Vec<u8>,
     port: u16,
     socket: Option<TcpStream>,
     count: usize,
+
 }
 
 
-impl Client {
-    fn new(address: Vec<u8>, port: u16, poll: Rc<Poll>) -> Client {
-        Client {
+impl ClientHandler {
+    fn new(address: Vec<u8>, port: u16, poll: Rc<Poll>) -> ClientHandler {
+        ClientHandler {
             address,
             port,
             socket: None,
@@ -80,7 +104,7 @@ impl Client {
         Ok(Token(self.count))
     }
 
-    fn handle_in_server(&mut self) -> Result<Token, &'static str> {
+    fn handle_in_server(&mut self, forward: bool) -> Result<Token, &'static str> {
         Err("err")
     }
 
