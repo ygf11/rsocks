@@ -53,7 +53,6 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
 }
 
 
-
 impl AuthSelectRequest {
     pub fn version(&self) -> &Version {
         &self.version
@@ -91,10 +90,9 @@ pub fn parse_auth_select_reply_packet(data: &[u8]) -> Result<AuthSelectReply, &'
     Ok(result)
 }
 
-pub fn encode_auth_select_reply(
-    version: &Version, auth_type: &AuthType) -> Result<Vec<u8>, &'static str> {
-    let version_num = encode_version(version)?;
-    let auth_num = encode_auth_type(auth_type)?;
+pub fn encode_auth_select_reply(reply: &AuthSelectReply) -> Result<Vec<u8>, &'static str> {
+    let version_num = encode_version(reply.version())?;
+    let auth_num = encode_auth_type(reply.auth_type())?;
 
     let mut buffer = Vec::<u8>::new();
     buffer.insert(0, version_num);
@@ -104,6 +102,13 @@ pub fn encode_auth_select_reply(
 }
 
 impl AuthSelectReply {
+    pub fn new(version: Version, auth_type: AuthType) -> AuthSelectReply {
+        AuthSelectReply {
+            version,
+            method: auth_type,
+        }
+    }
+
     pub fn version(&self) -> &Version {
         &self.version
     }
@@ -261,6 +266,10 @@ pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static 
     };
 
     Ok(result)
+}
+
+pub fn encode_dst_service_reply(reply: DstServiceReply) -> Result<Vec<u8>, &'static str> {
+    Err("err")
 }
 
 pub struct UserPassAuthRequest {

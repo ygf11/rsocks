@@ -178,11 +178,12 @@ mod unit_test {
     }
 
     #[test]
-    fn encode_auth_select_reply_success(){
-        let data =
-            encode_auth_select_reply(&Version::Socks5, &AuthType::Non);
+    fn encode_auth_select_reply_success() {
+        let reply =
+            AuthSelectReply::new(Version::Socks5, AuthType::Non);
+        let data = encode_auth_select_reply(&reply);
 
-        match  data{
+        match data {
             Ok(buffer) => {
                 let bytes = buffer.as_slice();
                 assert_eq!(5, bytes[0]);
@@ -193,11 +194,13 @@ mod unit_test {
     }
 
     #[test]
-    fn encode_auth_select_reply_success_failed(){
-        let data =
-            encode_auth_select_reply(&Version::Others, &AuthType::Non);
+    fn encode_auth_select_reply_success_failed() {
+        let reply =
+            AuthSelectReply::new(Version::Socks5, AuthType::Non);
 
-        match  data{
+        let data = encode_auth_select_reply(&reply);
+
+        match data {
             Ok(buffer) => {
                 let bytes = buffer.as_slice();
                 assert_eq!(5, bytes[0]);
@@ -206,6 +209,4 @@ mod unit_test {
             Err(err) => assert_eq!("proxy only support version 5.", err)
         }
     }
-
-
 }
