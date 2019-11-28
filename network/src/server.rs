@@ -55,13 +55,15 @@ impl ServerHandler {
 struct ChildHandler {
     socket: TcpStream,
     stage: ServerStage,
+    forward: bool,
 }
 
 impl ChildHandler {
-    fn new(socket: TcpStream) -> ChildHandler {
+    fn new(socket: TcpStream, forward: bool) -> ChildHandler {
         ChildHandler {
             socket,
             stage: ServerStage::Init,
+            forward,
         }
     }
 
@@ -104,11 +106,7 @@ impl ClientHandler {
         Ok(Token(self.count))
     }
 
-    fn handle_in_server(&mut self, forward: bool) -> Result<Token, &'static str> {
-        Err("err")
-    }
-
-    fn handle_in_client(&mut self) -> Result<Token, &'static str> {
+    fn handle(&mut self) -> Result<Token, &'static str> {
         Err("err")
     }
 }
