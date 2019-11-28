@@ -494,14 +494,23 @@ fn parse_reply_type(reply_type: Option<u8>) -> Result<ReplyType, &'static str> {
     }
 }
 
-/// session状态
-pub enum SessionStage {
+/// client stage transfer enum
+pub enum ClientStage {
     Init,
-    AuthSelect,
+    SendAuthSelect,
     AuthSelectFinish,
     // todo add sub session of auth
-    Request,
+    SendRequest,
     RequestFinish,
-    ContentRequest,
+    SendContentRequest,
+    ContentFinish,
+}
+
+/// server stage transfer enum
+pub enum ServerStage{
+    Init,
+    AuthSelectFinish,
+    RequestFinish,
+    ReceiveContent,
     ContentFinish,
 }
