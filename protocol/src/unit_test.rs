@@ -209,4 +209,28 @@ mod unit_test {
             Err(err) => assert_eq!("proxy only support version 5.", err)
         }
     }
+
+    #[test]
+    fn encode_dst_service_reply_success() {
+        let reply = DstServiceReply::new(Version::Socks5
+                                         , ReplyType::Success, AddressType::Ipv4
+                                         ,"127.0.0.1".to_string(), 1024);
+
+        let data = encode_dst_service_reply(reply);
+
+        match data{
+            Ok(buffer) => {
+                let bytes = buffer.as_slice();
+                assert_eq!(5, bytes[0]);
+                assert_eq!(0, bytes[1]);
+                assert_eq!(0, bytes[2]);
+                assert_eq!(1, bytes[3]);
+                //println!("ip:{:?}", bytes.get(4..13).unwrap());
+                //assert_eq!("127.0.0.1", bytes[4..13]);
+                //println!("port:{:?}, {:?}", bytes[13], bytes[14]);
+            }
+
+            Err(err) => unreachable!()
+        }
+    }
 }

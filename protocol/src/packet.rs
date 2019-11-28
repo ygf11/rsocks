@@ -4,6 +4,7 @@ use crate::packet::CmdType::{Connect, Bind, Udp};
 use crate::packet::AuthType::*;
 use crate::packet::SubVersion::V0;
 use std::borrow::Borrow;
+use std::ops::BitAnd;
 
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
@@ -95,8 +96,8 @@ pub fn encode_auth_select_reply(reply: &AuthSelectReply) -> Result<Vec<u8>, &'st
     let auth_num = encode_auth_type(reply.auth_type())?;
 
     let mut buffer = Vec::<u8>::new();
-    buffer.insert(0, version_num);
-    buffer.insert(1, auth_num);
+    buffer.push(version_num);
+    buffer.push(auth_num);
 
     Ok(buffer)
 }
@@ -268,8 +269,59 @@ pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static 
     Ok(result)
 }
 
-pub fn encode_dst_service_reply(reply: DstServiceReply) -> Result<Vec<u8>, &'static str> {
-    Err("err")
+pub fn encode_dst_service_reply(dst_reply: DstServiceReply) -> Result<Vec<u8>, &'static str> {
+    let mut data = Vec::<u8>::new();
+    let version = encode_version(&dst_reply.version)?;
+    let reply = encode_reply_type(&dst_reply.reply)?;
+
+    let address_type = encode_address_type(&dst_reply.address_type)?;
+    let mut address = encode_address_from_string(dst_reply.address)?;
+
+    data.push(version);
+    data.push(reply);
+    data.push(0);
+    data.push(address_type);
+
+    data.append(&mut address);
+
+    let port = dst_reply.port;
+    let low_bit = port.bitand(0x00FF) as u8;
+    let high_bit = (port >> 8) as u8;
+    data.push(low_bit);
+    data.push(high_bit);
+
+    Ok(data)
+}
+
+pub fn encode_address_from_string(address: String) -> Result<Vec<u8>, &'static str> {
+    let list: Vec<_> = address.split(".").collect();
+    let mut result = Vec::<u8>::new();
+
+    for i in 0..list.len() {
+        let num: u8 = match list.get(i).unwrap().parse() {
+            Ok(value) => Ok(value),
+            Err(e) => Err("parse address error.")
+        }?;
+
+        result.push(num);
+    }
+
+    Ok(result)
+}
+
+
+impl DstServiceReply {
+    pub fn new(version: Version, reply: ReplyType
+               , address_type: AddressType, address: String, port: u16) -> DstServiceReply {
+        DstServiceReply {
+            version,
+            reply,
+            reserve: 0,
+            address_type,
+            address,
+            port,
+        }
+    }
 }
 
 pub struct UserPassAuthRequest {
@@ -488,6 +540,14 @@ fn parse_address_type(addr_type: Option<u8>) -> Result<AddressType, &'static str
     }
 }
 
+pub fn encode_address_type(address_type: &AddressType) -> Result<u8, &'static str> {
+    match address_type {
+        Ipv4 => Ok(1),
+        Domain => Ok(3),
+        Ipv6 => Ok(4)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum AuthResult {
     Success,
@@ -516,6 +576,21 @@ pub enum ReplyType {
     CmdNotSupport,
     AddressTypeNotSupport,
     Others,
+}
+
+pub fn encode_reply_type(reply_type: &ReplyType) -> Result<u8, &'static str> {
+    match reply_type {
+        Success => Ok(0),
+        ServerFailure => Ok(1),
+        ConnectionNotAllowed => Ok(2),
+        NetWorkUnReachable => Ok(3),
+        HostUnreachable => Ok(4),
+        ConnectionRefuse => Ok(5),
+        TTLExpired => Ok(6),
+        CmdNotSupport => Ok(7),
+        AddressTypeNotSupport => Ok(8),
+        ReplyType::Others => Ok(9),
+    }
 }
 
 fn parse_reply_type(reply_type: Option<u8>) -> Result<ReplyType, &'static str> {
