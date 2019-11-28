@@ -4,6 +4,8 @@ use mio::{Poll, Token, Ready, PollOpt};
 use std::net::{TcpListener, SocketAddr, TcpStream, IpAddr, Ipv4Addr};
 use std::rc::Rc;
 use protocol::packet::ServerStage;
+use protocol::packet::*;
+use self::protocol::packet::ServerStage::Init;
 
 struct ServerHandler {
     address: Vec<u8>,
@@ -67,8 +69,50 @@ impl ChildHandler {
         }
     }
 
-    fn handle(&self) -> Result<Token, &'static str> {
+    fn handle(&mut self, data: &[u8]) -> Result<Token, &'static str> {
+        let stage = &mut self.stage;
+        match stage {
+            ServerStage::Init => {
+                // parse packet and send
+                let request = parse_auth_select_request_packet(data)?;
+                match request.version(){
+                    Version::Others => return Err("version not support."),
+                    _ => ()
+                }
+
+                let n_methods = request.n_methods();
+                if n_methods == 0 {
+                    return Err("non auth method is specified.");
+                }
+
+                let methods = request.methods();
+                let contains_name_pass = methods.contains(&AuthType::NamePassword);
+                let contains_non = methods.contains(&AuthType::Non);
+
+                let auth_type = if contains_name_pass {
+                    AuthType::NamePassword
+                }else if contains_non {
+                    AuthType::Non
+                }else {
+                    return Err("proxy only support non and name/password auths.")
+                };
+
+
+            }
+            ServerStage::AuthSelectFinish => {
+                // parse packet and send
+            }
+            ServerStage::RequestFinish => {}
+            ServerStage::ReceiveContent => {}
+
+            _ => unreachable!()
+        }
+
         Err("err")
+    }
+
+    fn reset(&mut self) {
+        self.stage = Init;
     }
 }
 
@@ -77,7 +121,7 @@ struct ClientHandler {
     port: u16,
     socket: Option<TcpStream>,
     count: usize,
-
+    stage: ClientStage,
 }
 
 
@@ -88,6 +132,7 @@ impl ClientHandler {
             port,
             socket: None,
             count: 0,
+            stage: ClientStage::Init,
         }
     }
 
@@ -108,5 +153,9 @@ impl ClientHandler {
 
     fn handle(&mut self) -> Result<Token, &'static str> {
         Err("err")
+    }
+
+    fn reset(&mut self) {
+        self.stage = ClientStage::Init;
     }
 }

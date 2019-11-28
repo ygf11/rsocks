@@ -176,4 +176,36 @@ mod unit_test {
             _ => unreachable!()
         }
     }
+
+    #[test]
+    fn encode_auth_select_reply_success(){
+        let data =
+            encode_auth_select_reply(&Version::Socks5, &AuthType::Non);
+
+        match  data{
+            Ok(buffer) => {
+                let bytes = buffer.as_slice();
+                assert_eq!(5, bytes[0]);
+                assert_eq!(0, bytes[1]);
+            }
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn encode_auth_select_reply_success_failed(){
+        let data =
+            encode_auth_select_reply(&Version::Others, &AuthType::Non);
+
+        match  data{
+            Ok(buffer) => {
+                let bytes = buffer.as_slice();
+                assert_eq!(5, bytes[0]);
+                assert_eq!(0, bytes[1]);
+            }
+            Err(err) => assert_eq!("proxy only support version 5.", err)
+        }
+    }
+
+
 }

@@ -3,6 +3,7 @@ use crate::packet::AddressType::{Ipv4, Domain, Ipv6};
 use crate::packet::CmdType::{Connect, Bind, Udp};
 use crate::packet::AuthType::*;
 use crate::packet::SubVersion::V0;
+use std::borrow::Borrow;
 
 /// this packet is for authentication method
 /// selecting request when client finishes connecting.
@@ -51,6 +52,8 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
     Ok(result)
 }
 
+
+
 impl AuthSelectRequest {
     pub fn version(&self) -> &Version {
         &self.version
@@ -86,6 +89,18 @@ pub fn parse_auth_select_reply_packet(data: &[u8]) -> Result<AuthSelectReply, &'
     };
 
     Ok(result)
+}
+
+pub fn encode_auth_select_reply(
+    version: &Version, auth_type: &AuthType) -> Result<Vec<u8>, &'static str> {
+    let version_num = encode_version(version)?;
+    let auth_num = encode_auth_type(auth_type)?;
+
+    let mut buffer = Vec::<u8>::new();
+    buffer.insert(0, version_num);
+    buffer.insert(1, auth_num);
+
+    Ok(buffer)
 }
 
 impl AuthSelectReply {
@@ -383,6 +398,14 @@ pub fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
     }
 }
 
+pub fn encode_version(version: &Version) -> Result<u8, &'static str> {
+    match version {
+        Version::Socks5 => Ok(5),
+        // never
+        Version::Others => Err("proxy only support version 5.")
+    }
+}
+
 fn parse_sub_version(version: Option<u8>) -> Result<SubVersion, &'static str> {
     match version {
         Some(0) => Ok(V0),
@@ -412,6 +435,14 @@ pub fn parse_auth_type(auth: Option<u8>) -> Result<AuthType, &'static str> {
         Some(0x80) => Ok(Reserved),
         Some(0xff) => Ok(NonAccept),
         _ => return Err("auth method not supported.")
+    }
+}
+
+pub fn encode_auth_type(auth_type: &AuthType) -> Result<u8, &'static str> {
+    match auth_type {
+        Non => Ok(0),
+        NamePassword => Ok(2),
+        _ => Err("auth method not supported."),
     }
 }
 
@@ -507,7 +538,7 @@ pub enum ClientStage {
 }
 
 /// server stage transfer enum
-pub enum ServerStage{
+pub enum ServerStage {
     Init,
     AuthSelectFinish,
     RequestFinish,
