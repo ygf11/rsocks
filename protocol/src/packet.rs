@@ -293,6 +293,26 @@ impl DstServiceRequest {
             port,
         }
     }
+
+    pub fn version(&self) -> &Version{
+        &self.version
+    }
+
+    pub fn cmd(&self) -> &CmdType {
+        &self.cmd
+    }
+
+    pub fn address_type(&self) -> &AddressType{
+        &self.address_type
+    }
+
+    pub fn address(&self) -> String{
+        self.address.to_string()
+    }
+
+    pub fn port(&self) -> u16{
+        self.port
+    }
 }
 
 /// his packet is for target destination service request from server

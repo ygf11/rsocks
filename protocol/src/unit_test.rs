@@ -324,8 +324,5 @@ mod unit_test {
         }
     }
 
-    #[test]
-    fn handle_init_test(){
 
-    }
 }

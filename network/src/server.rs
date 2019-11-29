@@ -5,8 +5,36 @@ use std::net::{TcpListener, SocketAddr, TcpStream, IpAddr, Ipv4Addr};
 use std::rc::Rc;
 use protocol::packet::ServerStage;
 use protocol::packet::*;
-use self::protocol::packet::ServerStage::Init;
+use self::protocol::packet::ServerStage::{Init, AuthSelectFinish};
 use self::protocol::packet::Version::Socks5;
+
+enum DstAddress {
+    Ipv4(String, u16),
+    Domain(String)
+}
+
+fn check_version_type(version: &Version) -> Result<&Version, &'static str> {
+    match version {
+        Version::Socks5 => Ok(version),
+        _ => Err("this version only support SOCKS5")
+    }
+}
+
+fn check_cmd_operation(cmd: &CmdType) -> Result<&CmdType, &'static str> {
+    match cmd {
+        CmdType::Connect => Ok(cmd),
+        _ => Err("this version only support CONNECT.")
+    }
+}
+
+fn transfer_address(address:String, address_type:&AddressType, port:u16)
+    -> Result<DstAddress,&'static str>{
+    match address_type {
+        AddressType::Ipv4 => Ok(DstAddress::Ipv4(address, port)),
+        AddressType::Domain => Ok(DstAddress::Domain(address)),
+        AddressType::Ipv6 => Err("ipv6 not support in this version.")
+    }
+}
 
 struct ServerHandler {
     address: Vec<u8>,
@@ -55,50 +83,66 @@ impl ServerHandler {
     }
 }
 
-struct ChildHandler {
+pub struct ChildHandler {
     socket: Option<TcpStream>,
     stage: ServerStage,
     forward: bool,
     buffer: Vec<u8>,
+    address:Option<DstAddress>,
 }
 
 impl ChildHandler {
-    fn new(socket: TcpStream, forward: bool) -> ChildHandler {
+    pub fn new_test(socket: Option<TcpStream>, forward: bool) -> ChildHandler {
         ChildHandler {
-            socket:Some(socket),
+            socket,
             stage: ServerStage::Init,
             forward,
             buffer: Vec::<u8>::new(),
+            address: None,
+        }
+    }
+    pub fn new(socket: TcpStream, forward: bool) -> ChildHandler {
+        ChildHandler {
+            socket: Some(socket),
+            stage: ServerStage::Init,
+            forward,
+            buffer: Vec::<u8>::new(),
+            address: None,
         }
     }
 
-    fn handle(&mut self, data: &[u8]) -> Result<Token, &'static str> {
+    pub fn handle(&mut self, data: &[u8]) -> Result<usize, &'static str> {
         let stage = &mut self.stage;
         match stage {
-            ServerStage::Init => {}
+            ServerStage::Init => {
+                let size = self.handle_init_stage(data)?;
+                self.stage = AuthSelectFinish;
+                Ok(size)
+            }
             ServerStage::AuthSelectFinish => {
                 // parse packet and send
+                Err("err")
             }
-            ServerStage::RequestFinish => {}
-            ServerStage::ReceiveContent => {}
+            ServerStage::RequestFinish => {
+                Err("err")
+            }
+            ServerStage::ReceiveContent => {
+                Err("err")
+            }
 
-            _ => unreachable!()
+            _ => Err("unreachable.")
         }
-
-        Err("err")
     }
 
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.stage = Init;
     }
 
-    fn handle_init_stage(&mut self, data: &[u8]) -> Result<usize, &'static str> {
+    pub fn handle_init_stage(&mut self, data: &[u8]) -> Result<usize, &'static str> {
         // parse packet and send
         let request = parse_auth_select_request_packet(data)?;
-        match request.version() {
-            Version::Others => return Err("version not support."),
-            _ => ()
-        }
+
+        check_version_type(request.version())?;
 
         let n_methods = request.n_methods();
         if n_methods == 0 {
@@ -114,7 +158,7 @@ impl ChildHandler {
         } else if contains_non {
             AuthType::Non
         } else {
-            return Err("proxy only support non and name/password auths.");
+            return Err("proxy only support non and name/password auth-method.");
         };
 
         let auth_select_reply = AuthSelectReply::new(Socks5, auth_type);
@@ -123,14 +167,32 @@ impl ChildHandler {
         self.write_to_buffer(data)
     }
 
-    fn write_to_buffer(&mut self, data: &mut Vec<u8>) -> Result<usize, &'static str> {
-        let mut buffer = &mut self.buffer;
-        buffer.append(data);
+    pub fn handle_dst_request(&mut self, data: &'static mut Vec<u8>) -> Result<usize, &'static str> {
+        let request = parse_dst_service_request(data)?;
+        check_version_type(request.version())?;
+        check_cmd_operation(request.cmd())?;
 
-        Ok(data.len())
+        let address_type = request.address_type();
+        let address = request.address();
+        let port = request.port();
+
+        // save address:port
+        let dst_address = transfer_address(address, address_type, port)?;
+        self.address = Some(dst_address);
+
+        Err("err")
     }
 
-    fn clear_buffer(&mut self) {
+
+    pub fn write_to_buffer(&mut self, data: &mut Vec<u8>) -> Result<usize, &'static str> {
+        let mut buffer = &mut self.buffer;
+        let size: usize = data.len();
+        buffer.append(data);
+
+        Ok(size)
+    }
+
+    pub fn clear_buffer(&mut self) {
         self.buffer.clear()
     }
 }
