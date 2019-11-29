@@ -262,7 +262,8 @@ pub fn encode_dst_service_request(request: DstServiceRequest) -> Result<Vec<u8>,
     let cmd_type = encode_cmd(&request.cmd)?;
     let reserve = request.reserve;
     let address_type = encode_address_type(&request.address_type)?;
-    let mut address = encode_address_from_string(request.address)?;
+    // ipv4
+    let mut address = encode_address_with_type(request.address, &request.address_type)?;
 
     data.push(version);
     data.push(cmd_type);
@@ -278,7 +279,20 @@ pub fn encode_dst_service_request(request: DstServiceRequest) -> Result<Vec<u8>,
     data.push(high_bit);
 
     Ok(data)
+}
 
+impl DstServiceRequest {
+    pub fn new(version: Version, cmd: CmdType, reserve: u8, address_type: AddressType
+               , address: String, port: u16) -> DstServiceRequest {
+        DstServiceRequest {
+            version,
+            cmd,
+            reserve,
+            address_type,
+            address,
+            port,
+        }
+    }
 }
 
 /// his packet is for target destination service request from server
@@ -326,7 +340,8 @@ pub fn encode_dst_service_reply(dst_reply: DstServiceReply) -> Result<Vec<u8>, &
     let reply = encode_reply_type(&dst_reply.reply)?;
 
     let address_type = encode_address_type(&dst_reply.address_type)?;
-    let mut address = encode_address_from_string(dst_reply.address)?;
+    let mut address =
+        encode_address_with_type(dst_reply.address, &dst_reply.address_type)?;
 
     data.push(version);
     data.push(reply);
@@ -344,7 +359,21 @@ pub fn encode_dst_service_reply(dst_reply: DstServiceReply) -> Result<Vec<u8>, &
     Ok(data)
 }
 
-pub fn encode_address_from_string(address: String) -> Result<Vec<u8>, &'static str> {
+pub fn encode_address_with_type(address: String, address_type: &AddressType)
+                                -> Result<Vec<u8>, &'static str> {
+    match address_type {
+        Ipv4 => encode_address_for_ipv4(address),
+        Domain => encode_address_as_domain(address),
+        Ipv6 => Err("ipv6 is not support in encoding."),
+    }
+}
+
+pub fn encode_address_as_domain(address: String) -> Result<Vec<u8>, &'static str> {
+    Ok(address.as_bytes().to_vec())
+}
+
+
+pub fn encode_address_for_ipv4(address: String) -> Result<Vec<u8>, &'static str> {
     let list: Vec<_> = address.split(".").collect();
     let mut result = Vec::<u8>::new();
 

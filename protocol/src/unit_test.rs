@@ -261,5 +261,66 @@ mod unit_test {
         }
     }
 
+    #[test]
+    fn  encode_dst_service_request_success(){
+        let request = DstServiceRequest::new(
+            Version::Socks5, CmdType::Connect, 0
+            , AddressType::Ipv4,"127.0.0.1".to_string(), 1025);
 
+        let data = encode_dst_service_request(request);
+
+        match data {
+            Ok(buffer) => {
+                let bytes = buffer.as_slice();
+                println!("bytes:{:?}", bytes);
+                assert_eq!(5, bytes[0]);
+                assert_eq!(1, bytes[1]);
+                assert_eq!(0, bytes[2]);
+                assert_eq!(1, bytes[3]);
+                assert_eq!(127, bytes[4]);
+                assert_eq!(0, bytes[5]);
+                assert_eq!(0, bytes[6]);
+                assert_eq!(1, bytes[7]);
+                assert_eq!(1, bytes[8]);
+                assert_eq!(4, bytes[9]);
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn  encode_dst_request_with_domain_success(){
+        let request = DstServiceRequest::new(
+            Version::Socks5, CmdType::Connect, 0
+            , AddressType::Domain,"127.0.0.1".to_string(), 1025);
+
+        let data = encode_dst_service_request(request);
+
+        match data {
+            Ok(buffer) => {
+                let bytes = buffer.as_slice();
+                println!("bytes:{:?}", bytes);
+                assert_eq!(5, bytes[0]);
+                assert_eq!(1, bytes[1]);
+                assert_eq!(0, bytes[2]);
+                assert_eq!(3, bytes[3]);
+                assert_eq!(49, bytes[4]);
+                assert_eq!(50, bytes[5]);
+                assert_eq!(55, bytes[6]);
+                assert_eq!(46, bytes[7]);
+
+                assert_eq!(48, bytes[8]);
+                assert_eq!(46, bytes[9]);
+                assert_eq!(48, bytes[10]);
+                assert_eq!(46, bytes[11]);
+                assert_eq!(49, bytes[12]);
+
+                assert_eq!(1, bytes[13]);
+                assert_eq!(4, bytes[14]);
+            }
+
+            _ => unreachable!()
+        }
+    }
 }
