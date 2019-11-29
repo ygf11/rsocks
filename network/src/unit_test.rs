@@ -15,4 +15,13 @@ mod unit_test {
             _ => unreachable!()
         }
     }
+
+    //#[test]
+    //fn handle_dst_request_test() {
+    //    let mut child_handler = ChildHandler::new_test(None, false);
+    //    let mut bytes = &[5, 0, 1, 1, 127, 0, 0, 1, 1, 4];
+
+    //    let size = child_handler.handle_dst_request(bytes);
+
+    //}
 }

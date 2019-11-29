@@ -167,7 +167,7 @@ impl ChildHandler {
         self.write_to_buffer(data)
     }
 
-    pub fn handle_dst_request(&mut self, data: &'static mut Vec<u8>) -> Result<usize, &'static str> {
+    pub fn handle_dst_request(&mut self, data: &'static [u8]) -> Result<usize, &'static str> {
         let request = parse_dst_service_request(data)?;
         check_version_type(request.version())?;
         check_cmd_operation(request.cmd())?;
