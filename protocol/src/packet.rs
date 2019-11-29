@@ -53,8 +53,35 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
     Ok(result)
 }
 
+pub fn encode_auth_select_request(request: AuthSelectRequest) -> Result<Vec<u8>, &'static str> {
+    let mut data = Vec::<u8>::new();
+
+    let version_num = encode_version(&request.version)?;
+    data.push(version_num);
+    data.push(request.n_methods);
+
+    let methods = request.methods;
+
+    for i in 0..methods.len() {
+        let auth_type = methods.get(i);
+        let auth_num = encode_auth_type(auth_type.unwrap())?;
+        data.push(auth_num);
+    }
+
+
+    Ok(data)
+}
+
 
 impl AuthSelectRequest {
+    pub fn new(version: Version, n_methods: u8, methods: Vec<AuthType>) -> AuthSelectRequest {
+        AuthSelectRequest {
+            version,
+            n_methods,
+            methods,
+        }
+    }
+
     pub fn version(&self) -> &Version {
         &self.version
     }
@@ -229,6 +256,30 @@ pub fn get_port(bytes: &[u8]) -> Result<u16, &'static str> {
     Ok(port)
 }
 
+pub fn encode_dst_service_request(request: DstServiceRequest) -> Result<Vec<u8>, &'static str> {
+    let mut data = Vec::<u8>::new();
+    let version = encode_version(&request.version)?;
+    let cmd_type = encode_cmd(&request.cmd)?;
+    let reserve = request.reserve;
+    let address_type = encode_address_type(&request.address_type)?;
+    let mut address = encode_address_from_string(request.address)?;
+
+    data.push(version);
+    data.push(cmd_type);
+    data.push(0);
+    data.push(address_type);
+
+    data.append(&mut address);
+
+    let port = request.port;
+    let low_bit = port.bitand(0x00FF) as u8;
+    let high_bit = (port >> 8) as u8;
+    data.push(low_bit);
+    data.push(high_bit);
+
+    Ok(data)
+
+}
 
 /// his packet is for target destination service request from server
 pub struct DstServiceReply {
@@ -519,6 +570,15 @@ pub fn parse_cmd(cmd: Option<u8>) -> Result<CmdType, &'static str> {
         Some(1) => Ok(Connect),
         Some(2) => Ok(Bind),
         Some(3) => Ok(Udp),
+        _ => Err("cmd type not support.")
+    }
+}
+
+pub fn encode_cmd(cmd_type: &CmdType) -> Result<u8, &'static str> {
+    match cmd_type {
+        Connect => Ok(1),
+        Bind => Ok(2),
+        Udp => Ok(3),
         _ => Err("cmd type not support.")
     }
 }

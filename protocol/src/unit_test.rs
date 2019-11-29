@@ -238,5 +238,28 @@ mod unit_test {
         }
     }
 
+    #[test]
+    fn encode_auth_select_request_success(){
+        let mut auth_types = Vec::<AuthType>::new();
+        auth_types.push(AuthType::Non);
+        auth_types.push(AuthType::NamePassword);
+        let request = AuthSelectRequest::new(Version::Socks5
+                                             ,2, auth_types);
+
+        let data = encode_auth_select_request(request);
+
+        match data {
+            Ok(buffer) => {
+                let bytes = buffer.as_slice();
+                assert_eq!(5, bytes[0]);
+                assert_eq!(2, bytes[1]);
+                assert_eq!(0, bytes[2]);
+                assert_eq!(2, bytes[3]);
+            }
+
+            _ => unreachable!()
+        }
+    }
+
 
 }
