@@ -221,16 +221,22 @@ mod unit_test {
         match data{
             Ok(buffer) => {
                 let bytes = buffer.as_slice();
+                println!("bytes:{:?}", bytes);
                 assert_eq!(5, bytes[0]);
                 assert_eq!(0, bytes[1]);
                 assert_eq!(0, bytes[2]);
                 assert_eq!(1, bytes[3]);
-                //println!("ip:{:?}", bytes.get(4..13).unwrap());
-                //assert_eq!("127.0.0.1", bytes[4..13]);
-                //println!("port:{:?}, {:?}", bytes[13], bytes[14]);
+                assert_eq!(127, bytes[4]);
+                assert_eq!(0, bytes[5]);
+                assert_eq!(0, bytes[6]);
+                assert_eq!(1, bytes[7]);
+                assert_eq!(0, bytes[8]);
+                assert_eq!(4, bytes[9]);
             }
 
             Err(err) => unreachable!()
         }
     }
+
+
 }
