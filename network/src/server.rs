@@ -1,16 +1,19 @@
 extern crate protocol;
 
 use mio::{Poll, Token, Ready, PollOpt};
-use std::net::{TcpListener, SocketAddr, TcpStream, IpAddr, Ipv4Addr};
+use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+use mio::net::{TcpStream, TcpListener};
 use std::rc::Rc;
 use protocol::packet::ServerStage;
 use protocol::packet::*;
-use self::protocol::packet::ServerStage::{Init, AuthSelectFinish};
+use self::protocol::packet::ServerStage::{Init, AuthSelectFinish, RequestFinish};
 use self::protocol::packet::Version::Socks5;
+use std::io::Error;
+
 
 enum DstAddress {
     Ipv4(String, u16),
-    Domain(String)
+    Domain(String),
 }
 
 fn check_version_type(version: &Version) -> Result<&Version, &'static str> {
@@ -27,8 +30,8 @@ fn check_cmd_operation(cmd: &CmdType) -> Result<&CmdType, &'static str> {
     }
 }
 
-fn transfer_address(address:String, address_type:&AddressType, port:u16)
-    -> Result<DstAddress,&'static str>{
+fn transfer_address(address: String, address_type: &AddressType, port: u16)
+                    -> Result<DstAddress, &'static str> {
     match address_type {
         AddressType::Ipv4 => Ok(DstAddress::Ipv4(address, port)),
         AddressType::Domain => Ok(DstAddress::Domain(address)),
@@ -36,7 +39,7 @@ fn transfer_address(address:String, address_type:&AddressType, port:u16)
     }
 }
 
-struct ServerHandler {
+pub struct ServerHandler {
     address: Vec<u8>,
     port: u16,
     listener: Option<TcpListener>,
@@ -44,7 +47,7 @@ struct ServerHandler {
 }
 
 impl ServerHandler {
-    fn new(address: Vec<u8>, port: u16) -> ServerHandler {
+    pub fn new(address: Vec<u8>, port: u16) -> ServerHandler {
         ServerHandler {
             address,
             port,
@@ -53,7 +56,7 @@ impl ServerHandler {
         }
     }
 
-    fn init(&mut self) -> Result<Token, &'static str> {
+    pub fn init(&mut self) -> Result<Token, &'static str> {
         let vec = &self.address;
         let socket_addr = SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(vec.get(0).cloned().unwrap(),
@@ -72,38 +75,33 @@ impl ServerHandler {
         Ok(token)
     }
 
-    fn accept(&mut self) -> Result<TcpStream, &'static str> {
-        let (socket, remote) =
-            match self.listener.as_ref().unwrap().accept() {
-                Ok(stream) => Ok(stream),
-                Err(err) => Err("connect failed."),
-            }?;
+    pub fn accept(&mut self) -> Result<(TcpStream, SocketAddr), Error> {
+        self.listener.as_ref().unwrap().accept()
+    }
 
-        Ok(socket)
+    pub fn listener(&self) -> Option<&TcpListener> {
+        self.listener.as_ref()
     }
 }
 
 pub struct ChildHandler {
-    socket: Option<TcpStream>,
     stage: ServerStage,
     forward: bool,
     buffer: Vec<u8>,
-    address:Option<DstAddress>,
+    address: Option<DstAddress>,
 }
 
 impl ChildHandler {
-    pub fn new_test(socket: Option<TcpStream>, forward: bool) -> ChildHandler {
+    pub fn new_test(forward: bool) -> ChildHandler {
         ChildHandler {
-            socket,
             stage: ServerStage::Init,
             forward,
             buffer: Vec::<u8>::new(),
             address: None,
         }
     }
-    pub fn new(socket: TcpStream, forward: bool) -> ChildHandler {
+    pub fn new(forward: bool) -> ChildHandler {
         ChildHandler {
-            socket: Some(socket),
             stage: ServerStage::Init,
             forward,
             buffer: Vec::<u8>::new(),
@@ -111,22 +109,30 @@ impl ChildHandler {
         }
     }
 
-    pub fn handle(&mut self, data: &[u8]) -> Result<usize, &'static str> {
+    pub fn handle(&mut self, data: &'static [u8]) -> Result<usize, &'static str> {
         let stage = &mut self.stage;
         match stage {
             ServerStage::Init => {
                 let size = self.handle_init_stage(data)?;
                 self.stage = AuthSelectFinish;
+
+                println!("init stage packeg:{:?}", self.buffer);
                 Ok(size)
             }
             ServerStage::AuthSelectFinish => {
                 // parse packet and send
+                let size = self.handle_dst_request(data)?;
+                self.stage = RequestFinish;
+
                 Err("err")
             }
             ServerStage::RequestFinish => {
+                // receive proxy packets
+                // destroy connections
                 Err("err")
             }
             ServerStage::ReceiveContent => {
+                // end
                 Err("err")
             }
 
@@ -138,7 +144,7 @@ impl ChildHandler {
         self.stage = Init;
     }
 
-    pub fn handle_init_stage(&mut self, data: &[u8]) -> Result<usize, &'static str> {
+    pub fn handle_init_stage(&mut self, data: &'static [u8]) -> Result<usize, &'static str> {
         // parse packet and send
         let request = parse_auth_select_request_packet(data)?;
 

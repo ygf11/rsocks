@@ -114,6 +114,14 @@ name = "protocol"
 version = "0.1.0"
 
 [[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "mio 0.6.20 (registry+https://github.com/rust-lang/crates.io-index)",
+ "network 0.1.0",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

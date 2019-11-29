@@ -3,7 +3,7 @@ mod unit_test {
 
     #[test]
     fn handle_init_test() {
-        let mut child_handler = ChildHandler::new_test(None, false);
+        let mut child_handler = ChildHandler::new_test(false);
         let bytes = &[5, 1, 0];
 
         let size = child_handler.handle_init_stage(bytes);
