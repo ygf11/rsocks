@@ -6,6 +6,7 @@ use std::rc::Rc;
 use protocol::packet::ServerStage;
 use protocol::packet::*;
 use self::protocol::packet::ServerStage::Init;
+use self::protocol::packet::Version::Socks5;
 
 struct ServerHandler {
     address: Vec<u8>,
@@ -55,50 +56,26 @@ impl ServerHandler {
 }
 
 struct ChildHandler {
-    socket: TcpStream,
+    socket: Option<TcpStream>,
     stage: ServerStage,
     forward: bool,
+    buffer: Vec<u8>,
 }
 
 impl ChildHandler {
     fn new(socket: TcpStream, forward: bool) -> ChildHandler {
         ChildHandler {
-            socket,
+            socket:Some(socket),
             stage: ServerStage::Init,
             forward,
+            buffer: Vec::<u8>::new(),
         }
     }
 
     fn handle(&mut self, data: &[u8]) -> Result<Token, &'static str> {
         let stage = &mut self.stage;
         match stage {
-            ServerStage::Init => {
-                // parse packet and send
-                let request = parse_auth_select_request_packet(data)?;
-                match request.version(){
-                    Version::Others => return Err("version not support."),
-                    _ => ()
-                }
-
-                let n_methods = request.n_methods();
-                if n_methods == 0 {
-                    return Err("non auth method is specified.");
-                }
-
-                let methods = request.methods();
-                let contains_name_pass = methods.contains(&AuthType::NamePassword);
-                let contains_non = methods.contains(&AuthType::Non);
-
-                let auth_type = if contains_name_pass {
-                    AuthType::NamePassword
-                }else if contains_non {
-                    AuthType::Non
-                }else {
-                    return Err("proxy only support non and name/password auths.")
-                };
-
-
-            }
+            ServerStage::Init => {}
             ServerStage::AuthSelectFinish => {
                 // parse packet and send
             }
@@ -113,6 +90,48 @@ impl ChildHandler {
 
     fn reset(&mut self) {
         self.stage = Init;
+    }
+
+    fn handle_init_stage(&mut self, data: &[u8]) -> Result<usize, &'static str> {
+        // parse packet and send
+        let request = parse_auth_select_request_packet(data)?;
+        match request.version() {
+            Version::Others => return Err("version not support."),
+            _ => ()
+        }
+
+        let n_methods = request.n_methods();
+        if n_methods == 0 {
+            return Err("non auth method is specified.");
+        }
+
+        let methods = request.methods();
+        let contains_name_pass = methods.contains(&AuthType::NamePassword);
+        let contains_non = methods.contains(&AuthType::Non);
+
+        let auth_type = if contains_name_pass {
+            AuthType::NamePassword
+        } else if contains_non {
+            AuthType::Non
+        } else {
+            return Err("proxy only support non and name/password auths.");
+        };
+
+        let auth_select_reply = AuthSelectReply::new(Socks5, auth_type);
+        let mut data = &mut encode_auth_select_reply(&auth_select_reply)?;
+
+        self.write_to_buffer(data)
+    }
+
+    fn write_to_buffer(&mut self, data: &mut Vec<u8>) -> Result<usize, &'static str> {
+        let mut buffer = &mut self.buffer;
+        buffer.append(data);
+
+        Ok(data.len())
+    }
+
+    fn clear_buffer(&mut self) {
+        self.buffer.clear()
     }
 }
 

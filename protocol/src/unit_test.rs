@@ -323,4 +323,9 @@ mod unit_test {
             _ => unreachable!()
         }
     }
+
+    #[test]
+    fn handle_init_test(){
+
+    }
 }
