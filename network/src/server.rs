@@ -87,7 +87,8 @@ impl ServerHandler {
 pub struct ChildHandler {
     stage: ServerStage,
     forward: bool,
-    buffer: Vec<u8>,
+    receive_buffer: Vec<u8>,
+    send_buffer: Vec<u8>,
     address: Option<DstAddress>,
 }
 
@@ -96,7 +97,8 @@ impl ChildHandler {
         ChildHandler {
             stage: ServerStage::Init,
             forward,
-            buffer: Vec::<u8>::new(),
+            receive_buffer: Vec::<u8>::new(),
+            send_buffer: Vec::<u8>::new(),
             address: None,
         }
     }
@@ -104,7 +106,8 @@ impl ChildHandler {
         ChildHandler {
             stage: ServerStage::Init,
             forward,
-            buffer: Vec::<u8>::new(),
+            receive_buffer: Vec::<u8>::new(),
+            send_buffer: Vec::<u8>::new(),
             address: None,
         }
     }
@@ -116,7 +119,7 @@ impl ChildHandler {
                 let size = self.handle_init_stage(data)?;
                 self.stage = AuthSelectFinish;
 
-                println!("init stage packeg:{:?}", self.buffer);
+                println!("init stage packeg:{:?}", self.send_buffer);
                 Ok(size)
             }
             ServerStage::AuthSelectFinish => {
@@ -191,15 +194,26 @@ impl ChildHandler {
 
 
     pub fn write_to_buffer(&mut self, data: &mut Vec<u8>) -> Result<usize, &'static str> {
-        let mut buffer = &mut self.buffer;
+        let mut buffer = &mut self.send_buffer;
         let size: usize = data.len();
         buffer.append(data);
 
         Ok(size)
     }
 
-    pub fn clear_buffer(&mut self) {
-        self.buffer.clear()
+    pub fn clear_send_buffer(&mut self) {
+        self.send_buffer.clear()
+    }
+
+    pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &'static str> {
+        let mut buffer = &mut self.receive_buffer;
+        buffer.push(data);
+
+        Ok(1)
+    }
+
+    pub fn clear_receive_buffer(&mut self) {
+        self.receive_buffer.clear()
     }
 }
 

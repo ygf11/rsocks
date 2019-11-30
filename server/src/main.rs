@@ -46,6 +46,10 @@ fn main() {
 
     let mut buffer = [0 as u8; 1024];
 
+    // let mut buffer = ;
+
+    // let mut copy = Vec::<u8>::new();
+
     loop {
         poll.poll(&mut events, Some(Duration::from_millis(100)));
 
@@ -78,33 +82,48 @@ fn main() {
                     let mut handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
 
+
                     loop {
                         println!("read data:");
                         let read = socket.read(&mut buffer);
                         match read {
                             Ok(0) => {
-                                sockets_map.remove(&token);
-                                children_map.remove(&token);
+                                // sockets_map.remove(&token);
+                                // children_map.remove(&token);
+                                println!("in 0.");
                                 break;
                             }
                             Ok(size) => {
                                 println!("size:{}", size);
-                                println!("{:?}", buffer.get(0..10));
+                                for i in 0..size {
+                                    println!("{}", buffer[i]);
+                                    handler.receive_u8_data(buffer[i]);
+                                    buffer[i] = 0;
+                                }
+
                             }
                             Err(e)  if e.kind() == std::io::ErrorKind::WouldBlock => {
                                 // after read all data
                                 // handler.handle();
-                                break
-                            },
-                            Err(_) => break,
+                                // handler.receive_data(&mut buffer);
+                                // children_map.insert(token, handler);
+                                break;
+                            }
+                            Err(_) => {
+                                println!("in _");
+                                break;
+                            }
                         }
                     }
 
-
+                    // let copy = Vec::<u8>::from(buffer);
+                    // copy.copy_from_slice(&buffer);
+                    // copy.copy_from_slice(&buffer);
+                    // handler.handle(&copy);
+                    // handler.receive_data(&mut buffer);
                 }
                 _ => ()
             }
         }
     }
-
 }
