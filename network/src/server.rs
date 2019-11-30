@@ -8,7 +8,8 @@ use protocol::packet::ServerStage;
 use protocol::packet::*;
 use self::protocol::packet::ServerStage::{Init, AuthSelectFinish, RequestFinish};
 use self::protocol::packet::Version::Socks5;
-use std::io::Error;
+use std::io::{Error, Write};
+use std::collections::VecDeque;
 
 
 enum DstAddress {
@@ -87,8 +88,8 @@ impl ServerHandler {
 pub struct ChildHandler {
     stage: ServerStage,
     forward: bool,
-    receive_buffer: Vec<u8>,
-    send_buffer: Vec<u8>,
+    receive_buffer: VecDeque<u8>,
+    send_buffer: Option<VecDeque<u8>>,
     address: Option<DstAddress>,
 }
 
@@ -97,8 +98,8 @@ impl ChildHandler {
         ChildHandler {
             stage: ServerStage::Init,
             forward,
-            receive_buffer: Vec::<u8>::new(),
-            send_buffer: Vec::<u8>::new(),
+            receive_buffer: VecDeque::<u8>::new(),
+            send_buffer: Some(VecDeque::<u8>::new()),
             address: None,
         }
     }
@@ -106,8 +107,8 @@ impl ChildHandler {
         ChildHandler {
             stage: ServerStage::Init,
             forward,
-            receive_buffer: Vec::<u8>::new(),
-            send_buffer: Vec::<u8>::new(),
+            receive_buffer: VecDeque::<u8>::new(),
+            send_buffer: Some(VecDeque::<u8>::new()),
             address: None,
         }
     }
@@ -119,6 +120,7 @@ impl ChildHandler {
                 let mut size;
                 size = self.handle_init_stage()?;
                 println!("init stage packeg:{:?}", self.send_buffer);
+
                 Ok(size)
             }
             ServerStage::AuthSelectFinish => {
@@ -168,7 +170,9 @@ impl ChildHandler {
         };
 
         let auth_select_reply = AuthSelectReply::new(Socks5, auth_type);
-        let data =  encode_auth_select_reply(&auth_select_reply)?;
+        let data = encode_auth_select_reply(&auth_select_reply)?;
+
+        self.clear_receive_buffer();
 
         // Ok(data.len())
         self.write_to_buffer(data)
@@ -176,14 +180,14 @@ impl ChildHandler {
 
     pub fn parse_auth_select_request(&self) -> Result<AuthSelectRequest, String> {
         let cloned = self.receive_buffer.clone();
-        let data = cloned.as_slice();
+        let (data, _) = cloned.as_slices();
         // parse packet and send
         let request = parse_auth_select_request_packet(data)?;
         Ok(request)
     }
 
     pub fn handle_dst_request(&mut self) -> Result<usize, &str> {
-        let data = self.receive_buffer.as_slice();
+        let (data, _) = self.receive_buffer.as_slices();
         let request = parse_dst_service_request(data)?;
         check_version_type(request.version())?;
         check_cmd_operation(request.cmd())?;
@@ -199,30 +203,51 @@ impl ChildHandler {
         Err("err")
     }
 
+    pub fn clear_receive_buffer(&mut self) {
+        let buffer = &mut self.receive_buffer;
+        loop{
+            if buffer.is_empty(){
+                break;
+            }
+
+            buffer.pop_front();
+        }
+    }
 
     pub fn write_to_buffer(&mut self, data: Vec<u8>) -> Result<usize, String> {
-        let mut buffer = &mut self.send_buffer;
+        let mut buffer = match &mut self.send_buffer {
+            Some(buf) => Ok(buf),
+            None => Err("send buffer is none.")
+        }?;
+
         let size: usize = data.len();
-        for i in 0..data.len(){
-            buffer.push(*data.get(i).unwrap());
+
+        for i in 0..data.len() {
+            buffer.push_back(*data.get(i).unwrap());
         }
 
         Ok(size)
     }
 
-    pub fn clear_send_buffer(&mut self) {
-        self.send_buffer.clear()
-    }
-
     pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &str> {
         let mut buffer = &mut self.receive_buffer;
-        buffer.push(data);
+        buffer.push_back(data);
 
         Ok(1)
     }
 
-    pub fn clear_receive_buffer(&mut self) {
-        self.receive_buffer.clear()
+    pub fn write_to_socket(&mut self, socket: &mut TcpStream) -> Result<usize, String> {
+        let buffer = match self.send_buffer.take() {
+            Some(buf) => buf,
+            None => return Ok(0),
+        };
+
+        let (data, _) = buffer.as_slices();
+        socket.write_all(data);
+
+        self.send_buffer = Some(VecDeque::new());
+
+        Ok(data.len())
     }
 }
 

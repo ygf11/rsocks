@@ -63,7 +63,7 @@ fn main() {
                                 count = count + 1;
                                 let token = Token(count);
                                 poll.register(&socket, token
-                                              , Ready::readable() | Ready::writable()
+                                              , Ready::readable()
                                               , PollOpt::edge());
                                 // 先move到map中，然后进行borrow --- 抛错
                                 // 可以先borrow,再move
@@ -116,13 +116,23 @@ fn main() {
                     }
 
                     handler.handle();
-                    // let copy = Vec::<u8>::from(buffer);
-                    // copy.copy_from_slice(&buffer);
-                    // copy.copy_from_slice(&buffer);
-                    // handler.handle(&copy);
-                    // handler.receive_data(&mut buffer);
+
+                    poll.reregister(sockets_map.get(&token).unwrap(), token
+                                  ,  Ready::writable()
+                                  , PollOpt::edge());
                 }
-                // token if event
+                token if event.readiness().is_writable() => {
+                    println!("in write.");
+                    let child_handler = children_map.get_mut(&token).unwrap();
+                    let socket = sockets_map.get_mut(&token).unwrap();
+
+                    let size = child_handler.write_to_socket(socket);
+                    println!("write size:{}", size.unwrap());
+
+                    poll.reregister(sockets_map.get(&token).unwrap(), token
+                                  , Ready::readable()
+                                  , PollOpt::edge());
+                }
 
                 _ => ()
             }
