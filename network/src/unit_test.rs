@@ -4,9 +4,12 @@ mod unit_test {
     #[test]
     fn handle_init_test() {
         let mut child_handler = ChildHandler::new_test(false);
-        let bytes = &[5, 1, 0];
+        // let bytes = &[5, 1, 0];
+        child_handler.receive_u8_data(5);
+        child_handler.receive_u8_data(1);
+        child_handler.receive_u8_data(0);
 
-        let size = child_handler.handle_init_stage(bytes);
+        let size = child_handler.handle_init_stage();
 
         match size {
             Ok(len) => {

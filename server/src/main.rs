@@ -100,7 +100,6 @@ fn main() {
                                     handler.receive_u8_data(buffer[i]);
                                     buffer[i] = 0;
                                 }
-
                             }
                             Err(e)  if e.kind() == std::io::ErrorKind::WouldBlock => {
                                 // after read all data
@@ -116,12 +115,15 @@ fn main() {
                         }
                     }
 
+                    handler.handle();
                     // let copy = Vec::<u8>::from(buffer);
                     // copy.copy_from_slice(&buffer);
                     // copy.copy_from_slice(&buffer);
                     // handler.handle(&copy);
                     // handler.receive_data(&mut buffer);
                 }
+                // token if event
+
                 _ => ()
             }
         }

@@ -15,10 +15,10 @@ pub struct AuthSelectRequest {
     methods: Vec<AuthType>,
 }
 
-pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest, &'static str> {
+pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest, String> {
     let len = data.len();
     if len < 2 {
-        return Err("data not enough.");
+        return Err("data not enough.".to_string());
     }
 
     // version
@@ -31,7 +31,7 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
     // verify data len
     let total: usize = usize::from(2 + n_methods);
     if data.len() != total {
-        return Err("data length not right.");
+        return Err("data length not right.".to_string());
     }
 
     let mut i = 0;

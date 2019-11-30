@@ -56,7 +56,7 @@ impl ServerHandler {
         }
     }
 
-    pub fn init(&mut self) -> Result<Token, &'static str> {
+    pub fn init(&mut self) -> Result<Token, &str> {
         let vec = &self.address;
         let socket_addr = SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(vec.get(0).cloned().unwrap(),
@@ -112,34 +112,33 @@ impl ChildHandler {
         }
     }
 
-    pub fn handle(&mut self, data: &'static [u8]) -> Result<usize, &'static str> {
+    pub fn handle(&mut self) -> Result<usize, String> {
         let stage = &mut self.stage;
         match stage {
             ServerStage::Init => {
-                let size = self.handle_init_stage(data)?;
-                self.stage = AuthSelectFinish;
-
+                let mut size;
+                size = self.handle_init_stage()?;
                 println!("init stage packeg:{:?}", self.send_buffer);
                 Ok(size)
             }
             ServerStage::AuthSelectFinish => {
                 // parse packet and send
-                let size = self.handle_dst_request(data)?;
-                self.stage = RequestFinish;
+                let size = self.handle_dst_request()?;
+                // self.stage = RequestFinish;
 
-                Err("err")
+                Err("err".to_string())
             }
             ServerStage::RequestFinish => {
                 // receive proxy packets
                 // destroy connections
-                Err("err")
+                Err("err".to_string())
             }
             ServerStage::ReceiveContent => {
                 // end
-                Err("err")
+                Err("err".to_string())
             }
 
-            _ => Err("unreachable.")
+            _ => Err("unreachable.".to_string())
         }
     }
 
@@ -147,15 +146,13 @@ impl ChildHandler {
         self.stage = Init;
     }
 
-    pub fn handle_init_stage(&mut self, data: &'static [u8]) -> Result<usize, &'static str> {
-        // parse packet and send
-        let request = parse_auth_select_request_packet(data)?;
-
+    pub fn handle_init_stage(&mut self) -> Result<usize, String> {
+        let request = self.parse_auth_select_request()?;
         check_version_type(request.version())?;
 
         let n_methods = request.n_methods();
         if n_methods == 0 {
-            return Err("non auth method is specified.");
+            return Err("non auth method is specified.".to_string());
         }
 
         let methods = request.methods();
@@ -167,16 +164,26 @@ impl ChildHandler {
         } else if contains_non {
             AuthType::Non
         } else {
-            return Err("proxy only support non and name/password auth-method.");
+            return Err("proxy only support non and name/password auth-method.".to_string());
         };
 
         let auth_select_reply = AuthSelectReply::new(Socks5, auth_type);
-        let mut data = &mut encode_auth_select_reply(&auth_select_reply)?;
+        let data =  encode_auth_select_reply(&auth_select_reply)?;
 
+        // Ok(data.len())
         self.write_to_buffer(data)
     }
 
-    pub fn handle_dst_request(&mut self, data: &'static [u8]) -> Result<usize, &'static str> {
+    pub fn parse_auth_select_request(&self) -> Result<AuthSelectRequest, String> {
+        let cloned = self.receive_buffer.clone();
+        let data = cloned.as_slice();
+        // parse packet and send
+        let request = parse_auth_select_request_packet(data)?;
+        Ok(request)
+    }
+
+    pub fn handle_dst_request(&mut self) -> Result<usize, &str> {
+        let data = self.receive_buffer.as_slice();
         let request = parse_dst_service_request(data)?;
         check_version_type(request.version())?;
         check_cmd_operation(request.cmd())?;
@@ -193,10 +200,12 @@ impl ChildHandler {
     }
 
 
-    pub fn write_to_buffer(&mut self, data: &mut Vec<u8>) -> Result<usize, &'static str> {
+    pub fn write_to_buffer(&mut self, data: Vec<u8>) -> Result<usize, String> {
         let mut buffer = &mut self.send_buffer;
         let size: usize = data.len();
-        buffer.append(data);
+        for i in 0..data.len(){
+            buffer.push(*data.get(i).unwrap());
+        }
 
         Ok(size)
     }
@@ -205,7 +214,7 @@ impl ChildHandler {
         self.send_buffer.clear()
     }
 
-    pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &'static str> {
+    pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &str> {
         let mut buffer = &mut self.receive_buffer;
         buffer.push(data);
 
