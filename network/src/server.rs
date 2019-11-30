@@ -1,4 +1,5 @@
 extern crate protocol;
+extern crate dns_lookup;
 
 use mio::{Poll, Token, Ready, PollOpt};
 use std::net::{SocketAddr, IpAddr, Ipv4Addr};
@@ -91,6 +92,7 @@ pub struct ChildHandler {
     receive_buffer: VecDeque<u8>,
     send_buffer: Option<VecDeque<u8>>,
     address: Option<DstAddress>,
+    dst_socket: Option<TcpStream>,
 }
 
 impl ChildHandler {
@@ -101,6 +103,7 @@ impl ChildHandler {
             receive_buffer: VecDeque::<u8>::new(),
             send_buffer: Some(VecDeque::<u8>::new()),
             address: None,
+            dst_socket: None,
         }
     }
     pub fn new(forward: bool) -> ChildHandler {
@@ -110,6 +113,7 @@ impl ChildHandler {
             receive_buffer: VecDeque::<u8>::new(),
             send_buffer: Some(VecDeque::<u8>::new()),
             address: None,
+            dst_socket: None,
         }
     }
 
@@ -186,7 +190,7 @@ impl ChildHandler {
         Ok(request)
     }
 
-    pub fn handle_dst_request(&mut self) -> Result<usize, &str> {
+    pub fn handle_dst_request(&mut self) -> Result<usize, String> {
         let (data, _) = self.receive_buffer.as_slices();
         let request = parse_dst_service_request(data)?;
         check_version_type(request.version())?;
@@ -200,13 +204,16 @@ impl ChildHandler {
         let dst_address = transfer_address(address, address_type, port)?;
         self.address = Some(dst_address);
 
-        Err("err")
+        // connect -- then return socket
+        // send reply
+
+        Err("err".to_string())
     }
 
     pub fn clear_receive_buffer(&mut self) {
         let buffer = &mut self.receive_buffer;
-        loop{
-            if buffer.is_empty(){
+        loop {
+            if buffer.is_empty() {
                 break;
             }
 
@@ -248,6 +255,36 @@ impl ChildHandler {
         self.send_buffer = Some(VecDeque::new());
 
         Ok(data.len())
+    }
+
+    fn connect_to_dst(&mut self, address:DstAddress) -> Result<TcpStream, String>{
+        match address{
+            DstAddress::Ipv4(ipv4, port) => {
+                let mut ipv4_addr = String::from(ipv4);
+                ipv4_addr.push(':');
+                ipv4_addr.push_str(&port.to_string());
+                let socket = match TcpStream::connect(&ipv4_addr.parse().unwrap()){
+                    Ok(client) => Ok(client),
+                    Err(e) => Err("err when connect to dst server".to_string())
+                }?;
+
+                Ok(socket)
+            }
+
+            DstAddress::Domain(domain) => {
+                let ips = match dns_lookup::lookup_host(&domain){
+                    Ok(list) => Ok(list),
+                    Err(e) => Err("err when parse domain.".to_string())
+                }?;
+                let ip = ips.get(0).unwrap();
+                let socket = match TcpStream::connect(&SocketAddr::new(*ip, 1)){
+                    Ok(client) => Ok(client),
+                    Err(e) => Err("err when connect to dst server".to_string())
+                }?;
+
+                Ok(socket)
+            }
+        }
     }
 }
 
