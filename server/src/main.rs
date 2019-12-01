@@ -107,7 +107,7 @@ fn main() {
                             Ok(size) => {
                                 println!("size:{:?}", size);
                                 for i in 0..size {
-                                    println!("{}", buffer[i]);
+                                    println!("{:?}", buffer[i]);
                                     handler.receive_u8_data(buffer[i]);
                                     buffer[i] = 0;
                                 }

@@ -159,6 +159,9 @@ impl ChildHandler {
             ServerStage::RequestFinish => {
                 // receive proxy packets
                 // destroy connections
+                let (data, _) = self.receive_buffer.as_slices();
+                let str = String::from_utf8_lossy(data);
+                println!("{:?}", str);
                 Err("request finish err".to_string())
             }
             ServerStage::ReceiveContent => {
