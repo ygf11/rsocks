@@ -96,13 +96,16 @@ fn main() {
                         let read = socket.read(&mut buffer);
                         match read {
                             Ok(0) => {
+                                println!("in read 0");
                                 // sockets_map.remove(&token);
                                 // children_map.remove(&token);
+                                terminate_tokens.push(token);
+                                socket.shutdown(Shutdown::Both);
                                 println!("in 0.");
                                 break;
                             }
                             Ok(size) => {
-                                println!("size:{}", size);
+                                println!("size:{:?}", size);
                                 for i in 0..size {
                                     println!("{}", buffer[i]);
                                     handler.receive_u8_data(buffer[i]);
@@ -110,10 +113,6 @@ fn main() {
                                 }
                             }
                             Err(e)  if e.kind() == std::io::ErrorKind::WouldBlock => {
-                                // after read all data
-                                // handler.handle();
-                                // handler.receive_data(&mut buffer);
-                                // children_map.insert(token, handler);
                                 break;
                             }
                             Err(_) => {

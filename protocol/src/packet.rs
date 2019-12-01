@@ -294,7 +294,7 @@ impl DstServiceRequest {
         }
     }
 
-    pub fn version(&self) -> &Version{
+    pub fn version(&self) -> &Version {
         &self.version
     }
 
@@ -302,15 +302,15 @@ impl DstServiceRequest {
         &self.cmd
     }
 
-    pub fn address_type(&self) -> &AddressType{
+    pub fn address_type(&self) -> &AddressType {
         &self.address_type
     }
 
-    pub fn address(&self) -> String{
+    pub fn address(&self) -> String {
         self.address.to_string()
     }
 
-    pub fn port(&self) -> u16{
+    pub fn port(&self) -> u16 {
         self.port
     }
 }
@@ -367,6 +367,9 @@ pub fn encode_dst_service_reply(dst_reply: DstServiceReply) -> Result<Vec<u8>, &
     data.push(reply);
     data.push(0);
     data.push(address_type);
+
+    let address_len = address.len() as u8;
+    data.push(address_len);
 
     data.append(&mut address);
 

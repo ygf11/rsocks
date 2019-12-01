@@ -9,8 +9,9 @@ use protocol::packet::ServerStage;
 use protocol::packet::*;
 use self::protocol::packet::ServerStage::{Init, AuthSelectFinish, RequestFinish};
 use self::protocol::packet::Version::Socks5;
-use std::io::{Error, Write};
+use std::io::{Error, Write, ErrorKind};
 use std::collections::VecDeque;
+use self::protocol::packet::CmdType::Connect;
 
 
 struct DstAddress {
@@ -30,6 +31,22 @@ fn check_cmd_operation(cmd: &CmdType) -> Result<&CmdType, String> {
         CmdType::Connect => Ok(cmd),
         _ => Err("this version only support CONNECT.".to_string())
     }
+}
+
+fn connect_to_dst(address: &IpAddr, port: u16) -> Result<TcpStream, ReplyType> {
+    let socket = match TcpStream::connect(
+        &SocketAddr::new(*address, port)) {
+        Ok(socket) => Ok(socket),
+        Err(e) => {
+            // todo error kind
+            let kind = e.kind();
+            match kind {
+                _ => return Err(ReplyType::Others),
+            }
+        }
+    }?;
+
+    Ok(socket)
 }
 
 fn transfer_address(address: String, address_type: &AddressType)
@@ -96,7 +113,7 @@ pub struct ChildHandler {
     stage: ServerStage,
     forward: bool,
     receive_buffer: VecDeque<u8>,
-    send_buffer: Option<VecDeque<u8>>,
+    send_buffer: VecDeque<u8>,
     dst_socket: Option<TcpStream>,
 }
 
@@ -106,7 +123,7 @@ impl ChildHandler {
             stage: ServerStage::Init,
             forward,
             receive_buffer: VecDeque::<u8>::new(),
-            send_buffer: Some(VecDeque::<u8>::new()),
+            send_buffer: VecDeque::<u8>::new(),
             dst_socket: None,
         }
     }
@@ -115,7 +132,7 @@ impl ChildHandler {
             stage: ServerStage::Init,
             forward,
             receive_buffer: VecDeque::<u8>::new(),
-            send_buffer: Some(VecDeque::<u8>::new()),
+            send_buffer: VecDeque::<u8>::new(),
             dst_socket: None,
         }
     }
@@ -126,7 +143,7 @@ impl ChildHandler {
             ServerStage::Init => {
                 let mut size;
                 size = self.handle_init_stage()?;
-                println!("init stage packeg:{:?}", self.send_buffer);
+                println!("init stage packet:{:?}", self.send_buffer);
 
                 self.stage = ServerStage::AuthSelectFinish;
                 Ok(size)
@@ -134,9 +151,10 @@ impl ChildHandler {
             ServerStage::AuthSelectFinish => {
                 // parse packet and send
                 let size = self.handle_dst_request()?;
-                // self.stage = RequestFinish;
+                println!("request stage packet:{:?}", self.send_buffer);
 
-                Err("auth select finish stage err".to_string())
+                self.stage = RequestFinish;
+                Ok(size)
             }
             ServerStage::RequestFinish => {
                 // receive proxy packets
@@ -206,15 +224,47 @@ impl ChildHandler {
         let port = request.port();
 
         // save address:port
-        let dst_address = transfer_address(address, address_type)?;
+        let address_copy = String::from(&address);
+        let dst_address = transfer_address(address_copy, address_type)?;
 
         // connect -- then return socket
         // send reply
 
         // 1. 检查版本 ---- 非5 直接断开
-        // 2.
+        // 2. 检查cmd ---- 如果不为connect 直接断开
+        // 3. 连接远程服务 ---- 构造reply
+        // 4. 将响应写入buffer
+        // 5. 返回
+        let reply = match request.cmd() {
+            CmdType::Connect => {
+                // connect
+                let res = match connect_to_dst(&dst_address, port) {
+                    Ok(socket) => {
+                        self.dst_socket = Some(socket);
+                        ReplyType::Success
+                    }
+                    Err(e) => e
+                };
 
-        Err("err".to_string())
+                res
+            }
+
+            _ => ReplyType::CmdNotSupport
+        };
+
+        let address_type_copy = match address_type {
+            AddressType::Ipv4 => AddressType::Ipv4,
+            AddressType::Ipv6 => AddressType::Ipv6,
+            AddressType::Domain => AddressType::Domain,
+        };
+
+        let address_copy_2 = String::from(&address);
+        let dst_reply = DstServiceReply::new(
+            Version::Socks5, reply, address_type_copy, address_copy_2, port);
+
+        let data = encode_dst_service_reply(dst_reply)?;
+
+        self.write_to_buffer(data)
     }
 
     pub fn clear_receive_buffer(&mut self) {
@@ -228,11 +278,19 @@ impl ChildHandler {
         }
     }
 
+    pub fn clear_send_buffer(&mut self) {
+        let buffer = &mut self.send_buffer;
+        loop {
+            if buffer.is_empty() {
+                break;
+            }
+
+            buffer.pop_front();
+        }
+    }
+
     pub fn write_to_buffer(&mut self, data: Vec<u8>) -> Result<usize, String> {
-        let mut buffer = match &mut self.send_buffer {
-            Some(buf) => Ok(buf),
-            None => Err("send buffer is none.".to_string())
-        }?;
+        let mut buffer = &mut self.send_buffer;
 
         let size: usize = data.len();
 
@@ -251,31 +309,26 @@ impl ChildHandler {
     }
 
     pub fn write_to_socket(&mut self, socket: &mut TcpStream) -> Result<usize, String> {
-        let buffer = match self.send_buffer.take() {
-            Some(buf) => buf,
-            None => return Ok(0),
-        };
+        let buffer = &self.send_buffer;
 
         let (data, _) = buffer.as_slices();
+        let size = data.len();
+        println!("send data size:{:?}", size);
         socket.write_all(data);
 
-        self.send_buffer = Some(VecDeque::new());
+        self.clear_send_buffer();
 
-        Ok(data.len())
+        Ok(size)
     }
 
+    fn buffer_dst_reply(&mut self, reply: ReplyType, address_type: AddressType
+                        , address: String, port: u16) -> Result<usize, String> {
+        let dst_reply = DstServiceReply::new(
+            Version::Socks5, reply, address_type, address, port);
 
-    fn connect_to_dst(&mut self, address: &IpAddr, port: u16) -> Result<TcpStream, String> {
-        let socket = match TcpStream::connect(
-            &SocketAddr::new(*address, port)) {
-            Ok(socket) => Ok(socket),
-            Err(e) => {
-                // todo error kind
-                Err("err when connect to dst server.".to_string())
-            }
-        }?;
+        let data = encode_dst_service_reply(dst_reply)?;
 
-        Ok(socket)
+        self.write_to_buffer(data)
     }
 }
 
