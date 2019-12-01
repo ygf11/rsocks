@@ -2,7 +2,7 @@ extern crate protocol;
 extern crate dns_lookup;
 
 use mio::{Poll, Token, Ready, PollOpt};
-use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+use std::net::{SocketAddr, IpAddr, Ipv4Addr, SocketAddrV4};
 use mio::net::{TcpStream, TcpListener};
 use std::rc::Rc;
 use protocol::packet::ServerStage;
@@ -13,31 +13,37 @@ use std::io::{Error, Write};
 use std::collections::VecDeque;
 
 
-enum DstAddress {
-    Ipv4(String, u16),
-    Domain(String),
+struct DstAddress {
+    ip: IpAddr,
+    port: u16,
 }
 
-fn check_version_type(version: &Version) -> Result<&Version, &'static str> {
+fn check_version_type(version: &Version) -> Result<&Version, String> {
     match version {
         Version::Socks5 => Ok(version),
-        _ => Err("this version only support SOCKS5")
+        _ => Err("this version only support SOCKS5".to_string())
     }
 }
 
-fn check_cmd_operation(cmd: &CmdType) -> Result<&CmdType, &'static str> {
+fn check_cmd_operation(cmd: &CmdType) -> Result<&CmdType, String> {
     match cmd {
         CmdType::Connect => Ok(cmd),
-        _ => Err("this version only support CONNECT.")
+        _ => Err("this version only support CONNECT.".to_string())
     }
 }
 
-fn transfer_address(address: String, address_type: &AddressType, port: u16)
-                    -> Result<DstAddress, &'static str> {
+fn transfer_address(address: String, address_type: &AddressType)
+                    -> Result<IpAddr, String> {
     match address_type {
-        AddressType::Ipv4 => Ok(DstAddress::Ipv4(address, port)),
-        AddressType::Domain => Ok(DstAddress::Domain(address)),
-        AddressType::Ipv6 => Err("ipv6 not support in this version.")
+        AddressType::Ipv4 => Ok(address.parse().unwrap()),
+        AddressType::Domain => {
+            let ips = match dns_lookup::lookup_host(&address) {
+                Ok(list) => Ok(list),
+                Err(e) => Err("err when parse domain.".to_string())
+            }?;
+            Ok(*ips.first().unwrap())
+        }
+        AddressType::Ipv6 => Err("ipv6 not support in this version.".to_string())
     }
 }
 
@@ -91,7 +97,6 @@ pub struct ChildHandler {
     forward: bool,
     receive_buffer: VecDeque<u8>,
     send_buffer: Option<VecDeque<u8>>,
-    address: Option<DstAddress>,
     dst_socket: Option<TcpStream>,
 }
 
@@ -102,7 +107,6 @@ impl ChildHandler {
             forward,
             receive_buffer: VecDeque::<u8>::new(),
             send_buffer: Some(VecDeque::<u8>::new()),
-            address: None,
             dst_socket: None,
         }
     }
@@ -112,7 +116,6 @@ impl ChildHandler {
             forward,
             receive_buffer: VecDeque::<u8>::new(),
             send_buffer: Some(VecDeque::<u8>::new()),
-            address: None,
             dst_socket: None,
         }
     }
@@ -125,6 +128,7 @@ impl ChildHandler {
                 size = self.handle_init_stage()?;
                 println!("init stage packeg:{:?}", self.send_buffer);
 
+                self.stage = ServerStage::AuthSelectFinish;
                 Ok(size)
             }
             ServerStage::AuthSelectFinish => {
@@ -132,19 +136,19 @@ impl ChildHandler {
                 let size = self.handle_dst_request()?;
                 // self.stage = RequestFinish;
 
-                Err("err".to_string())
+                Err("auth select finish stage err".to_string())
             }
             ServerStage::RequestFinish => {
                 // receive proxy packets
                 // destroy connections
-                Err("err".to_string())
+                Err("request finish err".to_string())
             }
             ServerStage::ReceiveContent => {
                 // end
-                Err("err".to_string())
+                Err("receive content err".to_string())
             }
 
-            _ => Err("unreachable.".to_string())
+            _ => Err("unreachable err".to_string())
         }
     }
 
@@ -175,7 +179,6 @@ impl ChildHandler {
 
         let auth_select_reply = AuthSelectReply::new(Socks5, auth_type);
         let data = encode_auth_select_reply(&auth_select_reply)?;
-
         self.clear_receive_buffer();
 
         // Ok(data.len())
@@ -193,19 +196,23 @@ impl ChildHandler {
     pub fn handle_dst_request(&mut self) -> Result<usize, String> {
         let (data, _) = self.receive_buffer.as_slices();
         let request = parse_dst_service_request(data)?;
+
         check_version_type(request.version())?;
-        check_cmd_operation(request.cmd())?;
+
+        // check_cmd_operation(request.cmd())?;
 
         let address_type = request.address_type();
         let address = request.address();
         let port = request.port();
 
         // save address:port
-        let dst_address = transfer_address(address, address_type, port)?;
-        self.address = Some(dst_address);
+        let dst_address = transfer_address(address, address_type)?;
 
         // connect -- then return socket
         // send reply
+
+        // 1. 检查版本 ---- 非5 直接断开
+        // 2.
 
         Err("err".to_string())
     }
@@ -224,7 +231,7 @@ impl ChildHandler {
     pub fn write_to_buffer(&mut self, data: Vec<u8>) -> Result<usize, String> {
         let mut buffer = match &mut self.send_buffer {
             Some(buf) => Ok(buf),
-            None => Err("send buffer is none.")
+            None => Err("send buffer is none.".to_string())
         }?;
 
         let size: usize = data.len();
@@ -257,34 +264,18 @@ impl ChildHandler {
         Ok(data.len())
     }
 
-    fn connect_to_dst(&mut self, address:DstAddress) -> Result<TcpStream, String>{
-        match address{
-            DstAddress::Ipv4(ipv4, port) => {
-                let mut ipv4_addr = String::from(ipv4);
-                ipv4_addr.push(':');
-                ipv4_addr.push_str(&port.to_string());
-                let socket = match TcpStream::connect(&ipv4_addr.parse().unwrap()){
-                    Ok(client) => Ok(client),
-                    Err(e) => Err("err when connect to dst server".to_string())
-                }?;
 
-                Ok(socket)
+    fn connect_to_dst(&mut self, address: &IpAddr, port: u16) -> Result<TcpStream, String> {
+        let socket = match TcpStream::connect(
+            &SocketAddr::new(*address, port)) {
+            Ok(socket) => Ok(socket),
+            Err(e) => {
+                // todo error kind
+                Err("err when connect to dst server.".to_string())
             }
+        }?;
 
-            DstAddress::Domain(domain) => {
-                let ips = match dns_lookup::lookup_host(&domain){
-                    Ok(list) => Ok(list),
-                    Err(e) => Err("err when parse domain.".to_string())
-                }?;
-                let ip = ips.get(0).unwrap();
-                let socket = match TcpStream::connect(&SocketAddr::new(*ip, 1)){
-                    Ok(client) => Ok(client),
-                    Err(e) => Err("err when connect to dst server".to_string())
-                }?;
-
-                Ok(socket)
-            }
-        }
+        Ok(socket)
     }
 }
 

@@ -30,7 +30,7 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
 
     // verify data len
     let total: usize = usize::from(2 + n_methods);
-    if data.len() != total {
+    if data.len() < total {
         return Err("data length not right.".to_string());
     }
 

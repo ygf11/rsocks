@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::process::Child;
 use std::io::Read;
 use mio::net::TcpStream;
+use mio::tcp::Shutdown;
 
 fn main() {
     let mut address = Vec::<u8>::new();
@@ -46,11 +47,19 @@ fn main() {
 
     let mut buffer = [0 as u8; 1024];
 
+    let mut terminate_tokens = Vec::<Token>::new();
     // let mut buffer = ;
 
     // let mut copy = Vec::<u8>::new();
 
     loop {
+        while !terminate_tokens.is_empty(){
+            let token = terminate_tokens.pop().unwrap();
+            children_map.remove(&token);
+            sockets_map.remove(&token);
+        }
+
+
         poll.poll(&mut events, Some(Duration::from_millis(100)));
 
         for event in events.iter() {
@@ -81,7 +90,6 @@ fn main() {
                     // communicate with local browser
                     let mut handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
-
 
                     loop {
                         println!("read data:");
@@ -115,11 +123,21 @@ fn main() {
                         }
                     }
 
-                    handler.handle();
-
-                    poll.reregister(sockets_map.get(&token).unwrap(), token
-                                  ,  Ready::writable()
-                                  , PollOpt::edge());
+                    match handler.handle() {
+                        Ok(size) => {
+                            poll.reregister(sockets_map.get(&token).unwrap(), token
+                                            , Ready::writable()
+                                            , PollOpt::edge());
+                        }
+                        Err(msg) => {
+                            // terminate
+                            println!("read err msg:{:?}", msg);
+                            terminate_tokens.push(token);
+                            // children_map.remove(&token);
+                            // sockets_map.remove(&token);
+                            socket.shutdown(Shutdown::Both);
+                        }
+                    };
                 }
                 token if event.readiness().is_writable() => {
                     println!("in write.");
@@ -127,11 +145,25 @@ fn main() {
                     let socket = sockets_map.get_mut(&token).unwrap();
 
                     let size = child_handler.write_to_socket(socket);
-                    println!("write size:{}", size.unwrap());
 
-                    poll.reregister(sockets_map.get(&token).unwrap(), token
-                                  , Ready::readable()
-                                  , PollOpt::edge());
+
+                    match child_handler.write_to_socket(socket) {
+                        Ok(size) => {
+                            println!("write size:{}", size);
+                            poll.reregister(sockets_map.get(&token).unwrap(), token
+                                            , Ready::readable()
+                                            , PollOpt::edge());
+                        }
+                        Err(msg) => {
+                            // terminate
+                            println!("write err msg:{:?}", msg);
+                            terminate_tokens.push(token);
+                            // children_map.remove(&token);
+                            // sockets_map.remove(&token);
+                            socket.shutdown(Shutdown::Both);
+                        }
+                    };
+
                 }
 
                 _ => ()
