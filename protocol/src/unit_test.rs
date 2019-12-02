@@ -83,9 +83,9 @@ mod unit_test {
         let result = parse_dst_address(&bytes, &Ipv4);
 
         match result {
-            Ok((address, port)) => {
+            Ok((address, address_len)) => {
                 assert_eq!("49.50.55.46", address);
-                assert_eq!(513, port);
+                assert_eq!(4, address_len);
             }
 
             Err(e) => unreachable!()
@@ -101,9 +101,9 @@ mod unit_test {
         let result = parse_dst_address(&bytes, &Domain);
 
         match result {
-            Ok((address, port)) => {
+            Ok((address, address_len)) => {
                 assert_eq!("www.baidu.com", address);
-                assert_eq!(257, port);
+                assert_eq!(13, address_len);
             }
             Err(e) => unreachable!()
         }

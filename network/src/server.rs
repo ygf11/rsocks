@@ -161,7 +161,7 @@ impl ChildHandler {
                 // destroy connections
                 let (data, _) = self.receive_buffer.as_slices();
                 let str = String::from_utf8_lossy(data);
-                println!("{:?}", str);
+                println!("http content size:{}", data.len());
                 Err("request finish err".to_string())
             }
             ServerStage::ReceiveContent => {
@@ -200,7 +200,7 @@ impl ChildHandler {
 
         let auth_select_reply = AuthSelectReply::new(Socks5, auth_type);
         let data = encode_auth_select_reply(&auth_select_reply)?;
-        self.clear_receive_buffer();
+        self.clear_receive_buffer(3);
 
         // Ok(data.len())
         self.write_to_buffer(data)
@@ -216,7 +216,7 @@ impl ChildHandler {
 
     pub fn handle_dst_request(&mut self) -> Result<usize, String> {
         let (data, _) = self.receive_buffer.as_slices();
-        let request = parse_dst_service_request(data)?;
+        let (request, address_len) = parse_dst_service_request(data)?;
 
         check_version_type(request.version())?;
 
@@ -267,17 +267,21 @@ impl ChildHandler {
 
         let data = encode_dst_service_reply(dst_reply)?;
 
+        self.clear_receive_buffer(address_len + 6);
+
         self.write_to_buffer(data)
     }
 
-    pub fn clear_receive_buffer(&mut self) {
+    pub fn clear_receive_buffer(&mut self, size: u8) {
+        let mut len = size.clone();
         let buffer = &mut self.receive_buffer;
         loop {
-            if buffer.is_empty() {
+            if len == 0 {
                 break;
             }
 
             buffer.pop_front();
+            len = len - 1;
         }
     }
 
@@ -306,6 +310,7 @@ impl ChildHandler {
 
     pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &str> {
         let mut buffer = &mut self.receive_buffer;
+        println!("receive_buffer size:{}", buffer.len());
         buffer.push_back(data);
 
         Ok(1)

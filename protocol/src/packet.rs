@@ -156,7 +156,7 @@ pub struct DstServiceRequest {
     port: u16,
 }
 
-pub fn parse_dst_service_request(data: &[u8]) -> Result<DstServiceRequest, &str> {
+pub fn parse_dst_service_request(data: &[u8]) -> Result<(DstServiceRequest, u8), &str> {
     let len = data.len();
     if len < 4 {
         return Err("data not enough in dst request packet.");
@@ -170,9 +170,10 @@ pub fn parse_dst_service_request(data: &[u8]) -> Result<DstServiceRequest, &str>
     };
 
     let address_type = parse_address_type(data.get(3).cloned())?;
-    let (address, port) = parse_dst_address(&data[4..data.len()],
-                                            &address_type)?;
-
+    let (address, address_len) = parse_dst_address(&data[4..data.len()],
+                                                   &address_type)?;
+    let len: usize = usize::from(address_len);
+    let port = get_port(data.get(4 + len..6 + len).unwrap())?;
     let result = DstServiceRequest {
         version,
         cmd,
@@ -182,10 +183,10 @@ pub fn parse_dst_service_request(data: &[u8]) -> Result<DstServiceRequest, &str>
         port,
     };
 
-    Ok(result)
+    Ok((result, address_len))
 }
 
-pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String, u16), &'static str> {
+pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String, u8), &'static str> {
     let len = data.len();
     match addr_type {
         Ipv4 => {
@@ -193,17 +194,17 @@ pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String
                 return Err("data not enough in ipv4 type.");
             }
             let address = get_ipv4_from_bytes(data.get(0..4).unwrap())?;
-            let port: u16 = get_port(data.get(4..6).unwrap())?;
-            Ok((address, port))
+            //let port: u16 = get_port(data.get(4..6).unwrap())?;
+            Ok((address, 4))
         }
         Ipv6 => {
             if len < 16 {
                 return Err("data not enough in ipv6 type.");
             }
             let address = get_ipv6_from_bytes(data.get(0..16).unwrap())?;
-            let port = get_port(data.get(16..18).unwrap())?;
+            //let port = get_port(data.get(16..18).unwrap())?;
             //let port: u16 = (data[17] as u16 | (data[18] as u16) << 8);
-            Ok((address, port))
+            Ok((address, 16))
         }
         Domain => {
             let addr_len = usize::from(data.get(0).cloned().unwrap());
@@ -212,9 +213,10 @@ pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String
             }
             let byte_array = data.get(1..addr_len + 1).unwrap();
             let address = get_domain_from_bytes(byte_array)?;
-            let port = get_port(data.get(addr_len + 1..addr_len + 3).unwrap())?;
+            //let port = get_port(data.get(addr_len + 1..addr_len + 3).unwrap())?;
             // let port: u16 = (data[addr_len + 1] as u16 | (data[addr_len + 2] as u16) << 8);
-            Ok((address, port))
+            let len = addr_len + 1;
+            Ok((address, len as u8))
         }
     }
 }
@@ -339,9 +341,10 @@ pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static 
     };
 
     let address_type = parse_address_type(data.get(3).cloned())?;
-    let (address, port) = parse_dst_address(&data[4..data.len()],
-                                            &address_type)?;
-
+    let (address, address_len) = parse_dst_address(&data[4..data.len()],
+                                                   &address_type)?;
+    let len: usize = usize::from(address_len);
+    let port = get_port(data.get(4 + len..6 + len).unwrap())?;
     let result = DstServiceReply {
         version,
         reply,
