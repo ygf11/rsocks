@@ -103,7 +103,7 @@ mod unit_test {
         match result {
             Ok((address, address_len)) => {
                 assert_eq!("www.baidu.com", address);
-                assert_eq!(13, address_len);
+                assert_eq!(14, address_len);
             }
             Err(e) => unreachable!()
         }
