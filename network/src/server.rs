@@ -112,8 +112,8 @@ impl ServerHandler {
 pub struct ChildHandler {
     stage: ServerStage,
     forward: bool,
-    receive_buffer: VecDeque<u8>,
-    send_buffer: VecDeque<u8>,
+    receive_buffer: Vec<u8>,
+    send_buffer: Vec<u8>,
     dst_socket: Option<TcpStream>,
 }
 
@@ -122,8 +122,8 @@ impl ChildHandler {
         ChildHandler {
             stage: ServerStage::Init,
             forward,
-            receive_buffer: VecDeque::<u8>::new(),
-            send_buffer: VecDeque::<u8>::new(),
+            receive_buffer: Vec::<u8>::new(),
+            send_buffer: Vec::<u8>::new(),
             dst_socket: None,
         }
     }
@@ -131,8 +131,8 @@ impl ChildHandler {
         ChildHandler {
             stage: ServerStage::Init,
             forward,
-            receive_buffer: VecDeque::<u8>::new(),
-            send_buffer: VecDeque::<u8>::new(),
+            receive_buffer: Vec::<u8>::new(),
+            send_buffer: Vec::<u8>::new(),
             dst_socket: None,
         }
     }
@@ -159,9 +159,10 @@ impl ChildHandler {
             ServerStage::RequestFinish => {
                 // receive proxy packets
                 // destroy connections
-                let (data, _) = self.receive_buffer.as_slices();
+                let data= self.receive_buffer.as_slice();
                 let str = String::from_utf8_lossy(data);
                 println!("http content size:{}", data.len());
+                println!("content:{:?}", str);
                 Err("request finish err".to_string())
             }
             ServerStage::ReceiveContent => {
@@ -208,14 +209,14 @@ impl ChildHandler {
 
     pub fn parse_auth_select_request(&self) -> Result<AuthSelectRequest, String> {
         let cloned = self.receive_buffer.clone();
-        let (data, _) = cloned.as_slices();
+        let data = cloned.as_slice();
         // parse packet and send
         let request = parse_auth_select_request_packet(data)?;
         Ok(request)
     }
 
     pub fn handle_dst_request(&mut self) -> Result<usize, String> {
-        let (data, _) = self.receive_buffer.as_slices();
+        let data = self.receive_buffer.as_slice();
         let (request, address_len) = parse_dst_service_request(data)?;
 
         check_version_type(request.version())?;
@@ -280,7 +281,7 @@ impl ChildHandler {
                 break;
             }
 
-            buffer.pop_front();
+            buffer.remove(0);
             len = len - 1;
         }
     }
@@ -292,7 +293,7 @@ impl ChildHandler {
                 break;
             }
 
-            buffer.pop_front();
+            buffer.remove(0);
         }
     }
 
@@ -302,7 +303,7 @@ impl ChildHandler {
         let size: usize = data.len();
 
         for i in 0..data.len() {
-            buffer.push_back(*data.get(i).unwrap());
+            buffer.push(*data.get(i).unwrap());
         }
 
         Ok(size)
@@ -310,8 +311,8 @@ impl ChildHandler {
 
     pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &str> {
         let mut buffer = &mut self.receive_buffer;
-        println!("receive_buffer size:{}", buffer.len());
-        buffer.push_back(data);
+        println!("receive_buffer len:{}", buffer.len());
+        buffer.push(data);
 
         Ok(1)
     }
@@ -319,7 +320,7 @@ impl ChildHandler {
     pub fn write_to_socket(&mut self, socket: &mut TcpStream) -> Result<usize, String> {
         let buffer = &self.send_buffer;
 
-        let (data, _) = buffer.as_slices();
+        let data = buffer.as_slice();
         let size = data.len();
         println!("send data size:{:?}", size);
         socket.write_all(data);
@@ -337,6 +338,10 @@ impl ChildHandler {
         let data = encode_dst_service_reply(dst_reply)?;
 
         self.write_to_buffer(data)
+    }
+
+    pub fn print_receive_buf_size(self) {
+        println!("receive buf size:{}", self.receive_buffer.len());
     }
 }
 
