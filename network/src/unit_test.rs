@@ -1,5 +1,6 @@
 mod unit_test {
     use crate::server::ChildHandler;
+    use crate::http;
 
     #[test]
     fn handle_init_test() {
@@ -19,6 +20,16 @@ mod unit_test {
         }
     }
 
+    #[test]
+    fn parse_line_test() {
+        let data = [71 as u8, 69, 84, 32, 47, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10];
+
+        let line = http::parse_line(&data);
+        match line {
+            Ok(line_str) => println!("line:{:?}", line_str),
+            Err(msg) => println!("err msg:{:?}", msg),
+        }
+    }
     //#[test]
     //fn handle_dst_request_test() {
     //    let mut child_handler = ChildHandler::new_test(None, false);

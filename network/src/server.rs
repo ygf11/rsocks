@@ -311,7 +311,7 @@ impl ChildHandler {
 
     pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &str> {
         let mut buffer = &mut self.receive_buffer;
-        println!("receive_buffer len:{}", buffer.len());
+        // println!("receive_buffer len:{}", buffer.len());
         buffer.push(data);
 
         Ok(1)
