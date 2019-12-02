@@ -368,9 +368,11 @@ pub fn encode_dst_service_reply(dst_reply: DstServiceReply) -> Result<Vec<u8>, &
     data.push(0);
     data.push(address_type);
 
-    let address_len = address.len() as u8;
-    data.push(address_len);
+    if dst_reply.address_type == AddressType::Domain {
+        let address_len = address.len() as u8;
 
+        data.push(address_len);
+    }
     data.append(&mut address);
 
     let port = dst_reply.port;
