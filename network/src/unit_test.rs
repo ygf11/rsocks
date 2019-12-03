@@ -1,6 +1,7 @@
 mod unit_test {
     use crate::server::ChildHandler;
     use crate::http;
+    use crate::http::{parse_http_header, parse_http_headers, HttpParseState};
 
     #[test]
     fn handle_init_test() {
@@ -21,13 +22,29 @@ mod unit_test {
     }
 
     #[test]
-    fn parse_line_test() {
+    fn parse_line_success() {
         let data = [71 as u8, 69, 84, 32, 47, 112, 114, 111, 120, 121, 46, 112, 97, 99,
             32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10];
         let line = http::parse_line(&data);
         match line {
-            Ok(line_str) => println!("line:{:?}", line_str),
-            Err(msg) => println!("err msg:{:?}", msg),
+            Ok((line_str, offset)) => {
+                assert_eq!("GET /proxy.pac HTTP/1.1", line_str);
+                assert_eq!(25, offset);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn parse_line_when_zero() {
+        let data = [13 as u8, 10];
+        let line = http::parse_line(&data);
+        match line {
+            Ok((line_str, offset)) => {
+                assert_eq!("", line_str);
+                assert_eq!(2, offset);
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -62,6 +79,159 @@ mod unit_test {
         match line {
             Ok(finish) => assert_eq!(false, finish),
             Err(msg) => println!("err msg:{:?}", msg),
+        }
+    }
+
+    #[test]
+    fn parse_http_header_success() {
+        let data = String::from("Host: 127.0.0.1:8080");
+        let map = parse_http_header(&data);
+
+        match map {
+            Ok((name, value)) => {
+                assert_eq!("Host", name);
+                assert_eq!("127.0.0.1:8080", value);
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_http_headers_failure_data_not_enough() {
+        let data = [72 as u8, 111, 115, 116, 58, 32, 49, 50, 55, 46,
+            48, 46, 48, 46, 49, 58, 49, 48, 56, 57, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10];
+
+
+        let headers = parse_http_headers(&data);
+
+        match headers {
+            Err(e) => {
+                assert_eq!("data not enough when parse http headers", e);
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_http_headers_fail_data_not_enough() {
+        let data = [72 as u8, 111, 115, 116, 58, 32, 49, 50, 55, 46,
+            48, 46, 48, 46, 49, 58, 49, 48, 56, 57, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10];
+
+
+        let headers = parse_http_headers(&data);
+
+        match headers {
+            Err(msg) => {
+                assert_eq!("data not enough when parse http headers", msg);
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_http_headers_fail_header_format_error() {
+        let data = [72 as u8, 111, 115, 116, 59, 32, 49, 50, 55, 46,
+            48, 46, 48, 46, 49, 59, 49, 48, 56, 57, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10, 13, 10];
+
+        let headers = parse_http_headers(&data);
+
+        match headers {
+            Err(msg) => {
+                assert_eq!("header formatter error.", msg);
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_http_headers_success_with_others() {
+        let data = [72 as u8, 111, 115, 116, 58, 32, 49, 50, 55, 46,
+            48, 46, 48, 46, 49, 58, 49, 48, 56, 57, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10, 13, 10];
+
+
+        let headers = parse_http_headers(&data);
+
+        match headers {
+            Ok((transfer_type, offset)) => {
+                assert_eq!(HttpParseState::Others, transfer_type);
+                assert_eq!(120, offset);
+            }
+
+            Err(_) => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_http_headers_success_with_content_length() {
+        let data = [67 as u8, 111, 110, 116, 101, 110, 116, 45, 108, 101, 110, 103,
+            116, 104, 58, 32, 49, 48, 48, 48, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10, 13, 10];
+
+
+        let headers = parse_http_headers(&data);
+
+        match headers {
+            Ok((transfer_type, offset)) => {
+                assert_eq!(120, offset);
+                match transfer_type {
+                    HttpParseState::ContentLength(len) => assert_eq!(1000, len),
+                    _ => unreachable!()
+                }
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_http_headers_success_with_transfer_encoding() {
+        let data = [67 as u8, 111, 110, 116, 101, 110, 116, 45, 108, 101, 110, 103,
+            116, 104, 58, 32, 49, 48, 48, 48, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10, 84, 114, 97, 110, 115, 102, 101, 114, 45, 69, 110, 99, 111, 100, 105,
+            110, 103, 58, 32, 99, 104, 117, 110, 107, 101, 100, 13, 10, 13, 10];
+
+
+        let headers = parse_http_headers(&data);
+
+        match headers {
+            Ok((transfer_type, offset)) => {
+                assert_eq!(148, offset);
+                assert_eq!(HttpParseState::TransferEncoding, transfer_type);
+            }
+
+            _ => unreachable!()
         }
     }
 }

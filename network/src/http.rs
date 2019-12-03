@@ -60,21 +60,27 @@ pub fn parse_http_headers(data: &[u8]) -> Result<(HttpParseState, usize), String
     loop {
         let (header, offset) = parse_line(&data[index..])?;
 
+        // only \r\n --- end of headers
+        if offset == 2{
+            return Ok((body_send_type, index + 2));
+        }
+
         let (name, value) = parse_http_header(&header)?;
 
-        if name == "transfer-encoding".to_string()
-            && value == "chunk".to_string() {
+        if name.to_ascii_lowercase() == "transfer-encoding".to_string()
+            && value.to_ascii_lowercase() == "chunked".to_string() {
             body_send_type = TransferEncoding;
         }
 
         if body_send_type != TransferEncoding
-            && name == "content-type".to_string() {
+            && name.to_ascii_lowercase() == "content-length".to_string() {
             body_send_type = ContentLength(value.parse::<usize>().unwrap());
         }
 
+
         index = index + offset;
         if index == data.len() {
-            return Ok((body_send_type, index));
+            return Err("data not enough when parse http headers".to_string());
         }
 
         println!("line:{:?}", header);
