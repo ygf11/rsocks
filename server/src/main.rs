@@ -106,7 +106,7 @@ fn main() {
                         Some(server) => ReceiveType::Proxy,
                     };
 
-                    if handler.is_next_dst_request()
+                    if handler.before_dst_request()
                         && handler.is_dst_token_empty() {
                         handler.set_dst_token(token_generator.next());
                     }
@@ -129,6 +129,7 @@ fn main() {
 
                                 for i in 0..size {
                                     println!("{:?}", buffer[i]);
+                                    // todo server/proxy
                                     handler.receive_u8_data(buffer[i]);
                                     buffer[i] = 0;
                                 }
@@ -146,6 +147,22 @@ fn main() {
                     match handler.handle() {
                         // TODO  add proxy socket logic
                         Ok(size) => {
+                            if handler.after_dst_request() {
+                                // 1. add to sockets_map
+                                // 2. add to proxy_map
+                                // 3. add to poll
+                                let proxy_socket = handler.get_proxy_socket().unwrap();
+                                let proxy_token = handler.get_dst_token().unwrap();
+                                let server_token = handler.get_token();
+                                sockets_map.insert(proxy_token.clone(), proxy_socket);
+                                proxy_map.insert(proxy_token.clone(), server_token.clone());
+
+                                poll.register(sockets_map.get(proxy_token).unwrap()
+                                                , proxy_token.clone()
+                                                , Ready::readable()
+                                                , PollOpt::edge());
+                            }
+
                             poll.reregister(sockets_map.get(&token).unwrap(), token
                                             , Ready::writable()
                                             , PollOpt::edge());

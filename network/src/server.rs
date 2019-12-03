@@ -7,7 +7,7 @@ use mio::net::{TcpStream, TcpListener};
 use std::rc::Rc;
 use protocol::packet::ServerStage;
 use protocol::packet::*;
-use self::protocol::packet::ServerStage::{Init, AuthSelectFinish, RequestFinish};
+use self::protocol::packet::ServerStage::{Init, AuthSelectFinish, RequestFinish, ReceiveContent};
 use self::protocol::packet::Version::Socks5;
 use std::io::{Error, Write, ErrorKind};
 use std::collections::VecDeque;
@@ -354,8 +354,12 @@ impl ChildHandler {
         println!("receive buf size:{}", self.receive_buffer.len());
     }
 
-    pub fn is_next_dst_request(&self) -> bool {
+    pub fn before_dst_request(&self) -> bool {
         self.stage == RequestFinish
+    }
+
+    pub fn after_dst_request(&self) -> bool{
+        self.stage == ReceiveContent
     }
 
     pub fn get_token(&self) -> &Token {
@@ -370,8 +374,12 @@ impl ChildHandler {
         self.dst_token = Some(token);
     }
 
-    pub fn get_dst_token(&self) -> &Option<Token> {
-        &self.dst_token
+    pub fn get_dst_token(&self) -> Option<&Token> {
+        self.dst_token.as_ref()
+    }
+
+    pub fn get_proxy_socket(&mut self) -> Option<TcpStream>{
+        self.dst_socket.take()
     }
 }
 
