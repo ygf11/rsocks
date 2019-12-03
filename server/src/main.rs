@@ -130,6 +130,9 @@ fn main() {
                                 for i in 0..size {
                                     println!("{:?}", buffer[i]);
                                     // todo server/proxy
+                                    // match receive_type {
+                                    //    ReceiveType::Proxy =>
+                                   // }
                                     handler.receive_u8_data(buffer[i]);
                                     buffer[i] = 0;
                                 }
