@@ -1,7 +1,7 @@
 mod unit_test {
     use crate::server::ChildHandler;
     use crate::http;
-    use crate::http::{parse_http_header, parse_http_headers, HttpParseState, PacketType};
+    use crate::http::{parse_http_header, parse_http_headers, HttpParseState, PacketType, read_with_content_length};
 
     #[test]
     fn handle_init_test() {
@@ -233,5 +233,51 @@ mod unit_test {
 
             _ => unreachable!()
         }
+    }
+
+    #[test]
+    fn read_with_content_length_success() {
+        let data = [67 as u8, 111, 110, 116, 101, 110, 116, 45, 108, 101, 110, 103,
+            116, 104, 58, 32, 49, 48, 48, 48, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10, 13, 10];
+
+
+        let result = read_with_content_length(&data, 10);
+
+        match result {
+            Ok(offset) => {
+                assert_eq!(10, offset);
+            }
+
+            _ => unreachable!()
+        }
+
+    }
+
+    #[test]
+    fn read_with_content_length_failed() {
+        let data = [67 as u8, 111, 110, 116, 101, 110, 116, 45, 108, 101, 110, 103,
+            116, 104, 58, 32, 49, 48, 48, 48, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
+            116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
+            116, 111, 115, 104, 59, 32, 73, 110, 116, 101, 108, 32, 77, 97, 99, 32, 79, 83, 32, 88,
+            32, 49, 48, 46, 49, 52, 59, 32, 114, 118, 58, 55, 48, 46, 48, 41, 32, 71, 101, 99, 107,
+            111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
+            48, 46, 48, 13, 10, 13, 10];
+
+
+        let result = read_with_content_length(&data, 150);
+
+        match result {
+            Err(msg) => {
+                assert_eq!("data is not enough when read with content-length.",msg);
+            }
+
+            _ => unreachable!()
+        }
+
     }
 }

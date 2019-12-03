@@ -162,7 +162,7 @@ pub fn read_with_content_length(data: &[u8], total: usize) -> Result<usize, Stri
         return Err("data is not enough when read with content-length.".to_string());
     }
 
-    Ok(len)
+    Ok(total)
 }
 
 /// read content in transfer-encoding
