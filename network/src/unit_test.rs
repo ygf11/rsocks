@@ -27,7 +27,7 @@ mod unit_test {
     fn set_token_success(){
         let mut child_handler = ChildHandler::new_test(&Token(0));
 
-        child_handler.set_dst_token_if_empty(Token(1));
+        child_handler.set_dst_token(Token(1));
 
         let token = child_handler.get_dst_token();
 
@@ -38,18 +38,20 @@ mod unit_test {
     }
 
     #[test]
-    fn set_token_failure(){
+    fn is_dst_token_empty_true(){
         let mut child_handler = ChildHandler::new_test(&Token(0));
+        let empty = child_handler.is_dst_token_empty();
 
-        child_handler.set_dst_token_if_empty(Token(1));
-        child_handler.set_dst_token_if_empty(Token(2));
+        assert_eq!(empty, true);
+    }
 
-        let token = child_handler.get_dst_token();
+    #[test]
+    fn is_dst_token_empty_false(){
+        let mut child_handler = ChildHandler::new_test(&Token(0));
+        child_handler.set_dst_token(Token(1));
+        let empty = child_handler.is_dst_token_empty();
 
-        match token.as_ref() {
-            Some(t) => assert_eq!(1, t.0),
-            _ => unreachable!()
-        }
+        assert_eq!(empty, false);
     }
 
     #[test]

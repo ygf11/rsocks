@@ -12,6 +12,11 @@ use mio::net::TcpStream;
 use std::net::Shutdown;
 use network::tokens::Tokens;
 
+enum ReceiveType {
+    Proxy,
+    Server,
+}
+
 fn main() {
     let mut address = Vec::<u8>::new();
     address.push(127);
@@ -44,7 +49,7 @@ fn main() {
 
     let mut sockets_map = HashMap::<Token, TcpStream>::new();
     // child_socket => proxy_socket
-    let mut proxy_map =  HashMap::<Token, Token>::new();
+    let mut proxy_map = HashMap::<Token, Token>::new();
 
     let mut count = 0;
 
@@ -59,7 +64,7 @@ fn main() {
     // let mut copy = Vec::<u8>::new();
 
     loop {
-        while !terminate_tokens.is_empty(){
+        while !terminate_tokens.is_empty() {
             let token = terminate_tokens.pop().unwrap();
             children_map.remove(&token);
             sockets_map.remove(&token);
@@ -96,6 +101,16 @@ fn main() {
                     let mut handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
 
+                    let receive_type = match proxy_map.get(&token) {
+                        None => ReceiveType::Server,
+                        Some(server) => ReceiveType::Proxy,
+                    };
+
+                    if handler.is_next_dst_request()
+                        && handler.is_dst_token_empty() {
+                        handler.set_dst_token(token_generator.next());
+                    }
+
                     loop {
                         println!("read data:");
                         let read = socket.read(&mut buffer);
@@ -117,7 +132,6 @@ fn main() {
                                     handler.receive_u8_data(buffer[i]);
                                     buffer[i] = 0;
                                 }
-
                             }
                             Err(e)  if e.kind() == std::io::ErrorKind::WouldBlock => {
                                 break;
@@ -130,6 +144,7 @@ fn main() {
                     }
 
                     match handler.handle() {
+                        // TODO  add proxy socket logic
                         Ok(size) => {
                             poll.reregister(sockets_map.get(&token).unwrap(), token
                                             , Ready::writable()
@@ -169,7 +184,6 @@ fn main() {
                             socket.shutdown(Shutdown::Both);
                         }
                     };
-
                 }
 
                 _ => ()

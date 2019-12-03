@@ -111,38 +111,38 @@ impl ServerHandler {
 }
 
 pub struct ChildHandler {
-    token:Token,
+    token: Token,
     stage: ServerStage,
     send_buffer: Vec<u8>,
     receive_buffer: Vec<u8>,
-    dst_token:Option<Token>,
+    dst_token: Option<Token>,
     dst_send_buffer: Vec<u8>,
     dst_receive_buffer: Vec<u8>,
     dst_socket: Option<TcpStream>,
 }
 
 impl ChildHandler {
-    pub fn new_test(token:&Token) -> ChildHandler {
+    pub fn new_test(token: &Token) -> ChildHandler {
         ChildHandler {
-            token:token.clone(),
+            token: token.clone(),
             stage: ServerStage::Init,
             receive_buffer: Vec::<u8>::new(),
             send_buffer: Vec::<u8>::new(),
-            dst_token:None,
+            dst_token: None,
             dst_receive_buffer: Vec::<u8>::new(),
-            dst_send_buffer:Vec::<u8>::new(),
+            dst_send_buffer: Vec::<u8>::new(),
             dst_socket: None,
         }
     }
-    pub fn new(token:&Token) -> ChildHandler {
+    pub fn new(token: &Token) -> ChildHandler {
         ChildHandler {
-            token:token.clone(),
+            token: token.clone(),
             stage: ServerStage::Init,
             receive_buffer: Vec::<u8>::new(),
             send_buffer: Vec::<u8>::new(),
-            dst_token:None,
+            dst_token: None,
             dst_receive_buffer: Vec::<u8>::new(),
-            dst_send_buffer:Vec::<u8>::new(),
+            dst_send_buffer: Vec::<u8>::new(),
             dst_socket: None,
         }
     }
@@ -354,24 +354,25 @@ impl ChildHandler {
         println!("receive buf size:{}", self.receive_buffer.len());
     }
 
-    pub fn is_next_dst_request(&self) -> bool{
+    pub fn is_next_dst_request(&self) -> bool {
         self.stage == RequestFinish
     }
 
-    pub fn get_token(&self) -> &Token{
+    pub fn get_token(&self) -> &Token {
         &self.token
     }
 
-    pub fn set_dst_token_if_empty(&mut self, token:Token){
-        if self.dst_token == None{
-            self.dst_token = Some(token);
-        }
+    pub fn is_dst_token_empty(&self) -> bool {
+        self.dst_token == None
     }
 
-    pub fn get_dst_token(&self) -> &Option<Token>{
+    pub fn set_dst_token(&mut self, token: Token) {
+        self.dst_token = Some(token);
+    }
+
+    pub fn get_dst_token(&self) -> &Option<Token> {
         &self.dst_token
     }
-
 }
 
 struct ClientHandler {
