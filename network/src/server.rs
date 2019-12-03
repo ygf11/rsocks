@@ -12,6 +12,7 @@ use self::protocol::packet::Version::Socks5;
 use std::io::{Error, Write, ErrorKind};
 use std::collections::VecDeque;
 use self::protocol::packet::CmdType::Connect;
+use std::ptr::null;
 
 
 struct DstAddress {
@@ -112,10 +113,11 @@ impl ServerHandler {
 pub struct ChildHandler {
     token:Token,
     stage: ServerStage,
-    receive_buffer: Vec<u8>,
     send_buffer: Vec<u8>,
-    dst_receive_buffer: Vec<u8>,
+    receive_buffer: Vec<u8>,
+    dst_token:Option<Token>,
     dst_send_buffer: Vec<u8>,
+    dst_receive_buffer: Vec<u8>,
     dst_socket: Option<TcpStream>,
 }
 
@@ -126,6 +128,7 @@ impl ChildHandler {
             stage: ServerStage::Init,
             receive_buffer: Vec::<u8>::new(),
             send_buffer: Vec::<u8>::new(),
+            dst_token:None,
             dst_receive_buffer: Vec::<u8>::new(),
             dst_send_buffer:Vec::<u8>::new(),
             dst_socket: None,
@@ -137,6 +140,7 @@ impl ChildHandler {
             stage: ServerStage::Init,
             receive_buffer: Vec::<u8>::new(),
             send_buffer: Vec::<u8>::new(),
+            dst_token:None,
             dst_receive_buffer: Vec::<u8>::new(),
             dst_send_buffer:Vec::<u8>::new(),
             dst_socket: None,
@@ -349,6 +353,25 @@ impl ChildHandler {
     pub fn print_receive_buf_size(self) {
         println!("receive buf size:{}", self.receive_buffer.len());
     }
+
+    pub fn is_next_dst_request(&self) -> bool{
+        self.stage == RequestFinish
+    }
+
+    pub fn get_token(&self) -> &Token{
+        &self.token
+    }
+
+    pub fn set_dst_token_if_empty(&mut self, token:Token){
+        if self.dst_token == None{
+            self.dst_token = Some(token);
+        }
+    }
+
+    pub fn get_dst_token(&self) -> &Option<Token>{
+        &self.dst_token
+    }
+
 }
 
 struct ClientHandler {

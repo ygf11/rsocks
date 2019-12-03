@@ -24,6 +24,35 @@ mod unit_test {
     }
 
     #[test]
+    fn set_token_success(){
+        let mut child_handler = ChildHandler::new_test(&Token(0));
+
+        child_handler.set_dst_token_if_empty(Token(1));
+
+        let token = child_handler.get_dst_token();
+
+        match token.as_ref() {
+            Some(t) => assert_eq!(1, t.0),
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn set_token_failure(){
+        let mut child_handler = ChildHandler::new_test(&Token(0));
+
+        child_handler.set_dst_token_if_empty(Token(1));
+        child_handler.set_dst_token_if_empty(Token(2));
+
+        let token = child_handler.get_dst_token();
+
+        match token.as_ref() {
+            Some(t) => assert_eq!(1, t.0),
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
     fn test_generate_token(){
         let mut tokens = Tokens::new();
         let token = tokens.next();

@@ -739,6 +739,7 @@ pub enum ClientStage {
 }
 
 /// server stage transfer enum
+#[derive(Debug, PartialEq)]
 pub enum ServerStage {
     Init,
     AuthSelectFinish,

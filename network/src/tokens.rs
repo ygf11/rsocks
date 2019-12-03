@@ -12,6 +12,7 @@ impl Tokens {
     }
 
     pub fn next(&mut self) -> Token {
+        // self.count().clone()
         let mut count = self.count;
         count = count + 1;
 

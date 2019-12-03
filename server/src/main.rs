@@ -10,6 +10,7 @@ use std::process::Child;
 use std::io::Read;
 use mio::net::TcpStream;
 use std::net::Shutdown;
+use network::tokens::Tokens;
 
 fn main() {
     let mut address = Vec::<u8>::new();
@@ -42,7 +43,7 @@ fn main() {
     let mut children_map = HashMap::<Token, ChildHandler>::new();
 
     let mut sockets_map = HashMap::<Token, TcpStream>::new();
-
+    // child_socket => proxy_socket
     let mut proxy_map =  HashMap::<Token, Token>::new();
 
     let mut count = 0;
@@ -50,6 +51,9 @@ fn main() {
     let mut buffer = [0 as u8; 1024];
 
     let mut terminate_tokens = Vec::<Token>::new();
+
+    let mut token_generator = Tokens::new();
+
     // let mut buffer = ;
 
     // let mut copy = Vec::<u8>::new();
@@ -71,8 +75,7 @@ fn main() {
                         let result = server.accept();
                         match result {
                             Ok((socket, _)) => {
-                                count = count + 1;
-                                let token = Token(count);
+                                let token = token_generator.next();
                                 poll.register(&socket, token
                                               , Ready::readable()
                                               , PollOpt::edge());
