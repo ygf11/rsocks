@@ -17,9 +17,13 @@ pub enum HttpParseState {
     Others,
 }
 
+pub enum PacketType{
+    Request,
+    Response
+}
+
 pub fn parse_http_request(data: &[u8]) {
-    let mut content_length_present = false;
-    let mut content_length = -1;
+
 }
 
 /// judge http request/response is finished
