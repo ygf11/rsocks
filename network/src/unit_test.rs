@@ -1,7 +1,7 @@
 mod unit_test {
     use crate::server::ChildHandler;
     use crate::http;
-    use crate::http::{parse_http_header, parse_http_headers, HttpParseState, PacketType, read_with_content_length};
+    use crate::http::*;
 
     #[test]
     fn handle_init_test() {
@@ -173,7 +173,7 @@ mod unit_test {
             48, 46, 48, 13, 10, 13, 10];
 
 
-        let headers = parse_http_headers(&data,&PacketType::Request);
+        let headers = parse_http_headers(&data, &PacketType::Request);
 
         match headers {
             Ok((transfer_type, offset)) => {
@@ -255,7 +255,6 @@ mod unit_test {
 
             _ => unreachable!()
         }
-
     }
 
     #[test]
@@ -273,11 +272,34 @@ mod unit_test {
 
         match result {
             Err(msg) => {
-                assert_eq!("data is not enough when read with content-length.",msg);
+                assert_eq!("data is not enough when read with content-length.", msg);
             }
 
             _ => unreachable!()
         }
+    }
 
+    #[test]
+    fn read_util_socket_closed_success() {
+        let data = [0 as u8, 12, 3, 4];
+        let result = read_util_close(&data, true);
+
+        match result {
+            Ok(size) => assert_eq!(4, size),
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn read_util_socket_closed_failed() {
+        let data = [0 as u8, 12, 3, 4];
+        let result = read_util_close(&data, false);
+
+        match result {
+            Err(msg) => {
+                assert_eq!("data not enough when read content-util-socket-close.".to_string(), msg)
+            }
+            _ => unreachable!()
+        }
     }
 }

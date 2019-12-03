@@ -167,11 +167,14 @@ pub fn read_with_content_length(data: &[u8], total: usize) -> Result<usize, Stri
 
 /// read content in transfer-encoding
 pub fn read_with_transfer_encoding(data: &[u8]) -> Result<usize, String> {
-
+    // todo receive dst response
     Err("err".to_string())
 }
 
 /// read util socket closed
 pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<usize, String> {
-    Err("err".to_string())
+    match socket_closed{
+        true => Ok(data.len()),
+        false => Err("data not enough when read content-util-socket-close.".to_string())
+    }
 }
