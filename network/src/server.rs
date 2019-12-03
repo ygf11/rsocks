@@ -110,29 +110,35 @@ impl ServerHandler {
 }
 
 pub struct ChildHandler {
+    token:Token,
     stage: ServerStage,
-    forward: bool,
     receive_buffer: Vec<u8>,
     send_buffer: Vec<u8>,
+    dst_receive_buffer: Vec<u8>,
+    dst_send_buffer: Vec<u8>,
     dst_socket: Option<TcpStream>,
 }
 
 impl ChildHandler {
-    pub fn new_test(forward: bool) -> ChildHandler {
+    pub fn new_test(token:&Token) -> ChildHandler {
         ChildHandler {
+            token:token.clone(),
             stage: ServerStage::Init,
-            forward,
             receive_buffer: Vec::<u8>::new(),
             send_buffer: Vec::<u8>::new(),
+            dst_receive_buffer: Vec::<u8>::new(),
+            dst_send_buffer:Vec::<u8>::new(),
             dst_socket: None,
         }
     }
-    pub fn new(forward: bool) -> ChildHandler {
+    pub fn new(token:&Token) -> ChildHandler {
         ChildHandler {
+            token:token.clone(),
             stage: ServerStage::Init,
-            forward,
             receive_buffer: Vec::<u8>::new(),
             send_buffer: Vec::<u8>::new(),
+            dst_receive_buffer: Vec::<u8>::new(),
+            dst_send_buffer:Vec::<u8>::new(),
             dst_socket: None,
         }
     }
@@ -159,7 +165,7 @@ impl ChildHandler {
             ServerStage::RequestFinish => {
                 // receive proxy packets
                 // destroy connections
-                let data= self.receive_buffer.as_slice();
+                let data = self.receive_buffer.as_slice();
                 let str = String::from_utf8_lossy(data);
                 println!("http content size:{}", data.len());
                 println!("content:{:?}", str);

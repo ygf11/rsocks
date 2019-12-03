@@ -12,10 +12,10 @@ static CONTENT_LENGTH: &'static str = "content-length";
 
 #[derive(Debug, PartialEq)]
 pub enum HttpParseState {
-    ContentLength(usize),
-    TransferEncoding,
     OtherRequest,
     OtherResponse,
+    ContentLength(usize),
+    TransferEncoding,
 }
 
 impl HttpParseState {
@@ -33,18 +33,25 @@ pub enum PacketType {
     Response,
 }
 
-pub fn is_end_of_http_packet(data: &[u8], packet_type: PacketType, socket_closed: bool)
-                             -> Result<bool, String> {
+pub fn get_end_of_http_packet(data: &[u8], packet_type: PacketType, socket_closed: bool)
+                              -> Result<usize, String> {
     // 1. parse initial line
     // 2. parse http headers
     // 3. receive util end
 
-    let (line, offset) = parse_line(data)?;
+    let (line, initial_offset) = parse_line(data)?;
 
-    let (transfer_type, offset) =
-        parse_http_headers(&data[offset..], &packet_type)?;
+    let (transfer_type, headers_offset) =
+        parse_http_headers(&data[initial_offset..], &packet_type)?;
 
-    Err("err".to_string())
+    let pos = initial_offset + headers_offset;
+    let starter = &data[pos..];
+    match transfer_type {
+        TransferEncoding => Ok(0),
+        OtherRequest => Ok(pos),
+        OtherResponse => read_util_close(starter, socket_closed),
+        ContentLength(size) => read_with_length(starter, size),
+    }
 }
 
 /// judge http request/response is finished
@@ -154,7 +161,7 @@ pub fn parse_line(data: &[u8]) -> Result<(String, usize), String> {
 }
 
 /// read content in content_length
-pub fn read_with_content_length(data: &[u8], total: usize) -> Result<usize, String> {
+pub fn read_with_length(data: &[u8], total: usize) -> Result<usize, String> {
     let mut to_read = total;
     let len = data.len();
 
@@ -173,7 +180,7 @@ pub fn read_with_transfer_encoding(data: &[u8]) -> Result<usize, String> {
 
 /// read util socket closed
 pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<usize, String> {
-    match socket_closed{
+    match socket_closed {
         true => Ok(data.len()),
         false => Err("data not enough when read content-util-socket-close.".to_string())
     }

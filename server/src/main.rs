@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::process::Child;
 use std::io::Read;
 use mio::net::TcpStream;
-use mio::tcp::Shutdown;
+use std::net::Shutdown;
 
 fn main() {
     let mut address = Vec::<u8>::new();
@@ -42,6 +42,8 @@ fn main() {
     let mut children_map = HashMap::<Token, ChildHandler>::new();
 
     let mut sockets_map = HashMap::<Token, TcpStream>::new();
+
+    let mut proxy_map =  HashMap::<Token, Token>::new();
 
     let mut count = 0;
 
@@ -76,7 +78,7 @@ fn main() {
                                               , PollOpt::edge());
                                 // 先move到map中，然后进行borrow --- 抛错
                                 // 可以先borrow,再move
-                                let child = ChildHandler::new(true);
+                                let child = ChildHandler::new(&token);
                                 children_map.insert(token, child);
                                 sockets_map.insert(token, socket);
                             }

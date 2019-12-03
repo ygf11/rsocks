@@ -2,10 +2,11 @@ mod unit_test {
     use crate::server::ChildHandler;
     use crate::http;
     use crate::http::*;
+    use mio::Token;
 
     #[test]
     fn handle_init_test() {
-        let mut child_handler = ChildHandler::new_test(false);
+        let mut child_handler = ChildHandler::new_test(&Token(0));
         // let bytes = &[5, 1, 0];
         child_handler.receive_u8_data(5);
         child_handler.receive_u8_data(1);
@@ -246,7 +247,7 @@ mod unit_test {
             48, 46, 48, 13, 10, 13, 10];
 
 
-        let result = read_with_content_length(&data, 10);
+        let result = read_with_length(&data, 10);
 
         match result {
             Ok(offset) => {
@@ -258,7 +259,7 @@ mod unit_test {
     }
 
     #[test]
-    fn read_with_content_length_failed() {
+    fn read_with_length_failed() {
         let data = [67 as u8, 111, 110, 116, 101, 110, 116, 45, 108, 101, 110, 103,
             116, 104, 58, 32, 49, 48, 48, 48, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110,
             116, 58, 32, 77, 111, 122, 105, 108, 108, 97, 47, 53, 46, 48, 32, 40, 77, 97, 99, 105, 110,
@@ -268,7 +269,7 @@ mod unit_test {
             48, 46, 48, 13, 10, 13, 10];
 
 
-        let result = read_with_content_length(&data, 150);
+        let result = read_with_length(&data, 150);
 
         match result {
             Err(msg) => {
