@@ -3,6 +3,7 @@ mod unit_test {
     use crate::http;
     use crate::http::*;
     use mio::Token;
+    use crate::tokens::Tokens;
 
     #[test]
     fn handle_init_test() {
@@ -20,6 +21,14 @@ mod unit_test {
             }
             _ => unreachable!()
         }
+    }
+
+    #[test]
+    fn test_generate_token(){
+        let mut tokens = Tokens::new();
+        let token = tokens.next();
+
+        assert_eq!(Token(1), token);
     }
 
     #[test]
