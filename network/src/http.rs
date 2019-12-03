@@ -14,16 +14,37 @@ static CONTENT_LENGTH: &'static str = "content-length";
 pub enum HttpParseState {
     ContentLength(usize),
     TransferEncoding,
-    Others,
+    OtherRequest,
+    OtherResponse,
 }
 
-pub enum PacketType{
+impl HttpParseState {
+    pub fn build_by_packet_type(packet_type: &PacketType) -> HttpParseState {
+        match packet_type {
+            Request => OtherRequest,
+            Response => OtherResponse,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum PacketType {
     Request,
-    Response
+    Response,
 }
 
-pub fn parse_http_request(data: &[u8]) {
+pub fn is_end_of_http_packet(data: &[u8], packet_type: PacketType, socket_closed: bool)
+                             -> Result<bool, String> {
+    // 1. parse initial line
+    // 2. parse http headers
+    // 3. receive util end
 
+    let (line, offset) = parse_line(data)?;
+
+    let (transfer_type, offset) =
+        parse_http_headers(&data[offset..], &packet_type)?;
+
+    Err("err".to_string())
 }
 
 /// judge http request/response is finished
@@ -58,14 +79,15 @@ pub fn parse_first_line(data: &[u8]) -> Result<(String, usize), String> {
 /// 4. http-response and non of each(1/2): receive util connection close
 ///
 ///
-pub fn parse_http_headers(data: &[u8]) -> Result<(HttpParseState, usize), String> {
+pub fn parse_http_headers(data: &[u8], packet_type: &PacketType)
+                          -> Result<(HttpParseState, usize), String> {
     let mut index = 0;
-    let mut body_send_type = Others;
+    let mut body_send_type = HttpParseState::build_by_packet_type(packet_type);
     loop {
         let (header, offset) = parse_line(&data[index..])?;
 
         // only \r\n --- end of headers
-        if offset == 2{
+        if offset == 2 {
             return Ok((body_send_type, index + 2));
         }
 
@@ -131,3 +153,25 @@ pub fn parse_line(data: &[u8]) -> Result<(String, usize), String> {
     }
 }
 
+/// read content in content_length
+pub fn read_with_content_length(data: &[u8], total: usize) -> Result<usize, String> {
+    let mut to_read = total;
+    let len = data.len();
+
+    if len < total {
+        return Err("data is not enough when read with content-length.".to_string());
+    }
+
+    Ok(len)
+}
+
+/// read content in transfer-encoding
+pub fn read_with_transfer_encoding(data: &[u8]) -> Result<usize, String> {
+
+    Err("err".to_string())
+}
+
+/// read util socket closed
+pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<usize, String> {
+    Err("err".to_string())
+}

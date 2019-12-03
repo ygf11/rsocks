@@ -1,7 +1,7 @@
 mod unit_test {
     use crate::server::ChildHandler;
     use crate::http;
-    use crate::http::{parse_http_header, parse_http_headers, HttpParseState};
+    use crate::http::{parse_http_header, parse_http_headers, HttpParseState, PacketType};
 
     #[test]
     fn handle_init_test() {
@@ -108,7 +108,7 @@ mod unit_test {
             48, 46, 48, 13, 10];
 
 
-        let headers = parse_http_headers(&data);
+        let headers = parse_http_headers(&data, &PacketType::Request);
 
         match headers {
             Err(e) => {
@@ -130,7 +130,7 @@ mod unit_test {
             48, 46, 48, 13, 10];
 
 
-        let headers = parse_http_headers(&data);
+        let headers = parse_http_headers(&data, &PacketType::Request);
 
         match headers {
             Err(msg) => {
@@ -151,7 +151,7 @@ mod unit_test {
             111, 47, 50, 48, 49, 48, 48, 49, 48, 49, 32, 70, 105, 114, 101, 102, 111, 120, 47, 55,
             48, 46, 48, 13, 10, 13, 10];
 
-        let headers = parse_http_headers(&data);
+        let headers = parse_http_headers(&data, &PacketType::Request);
 
         match headers {
             Err(msg) => {
@@ -173,11 +173,11 @@ mod unit_test {
             48, 46, 48, 13, 10, 13, 10];
 
 
-        let headers = parse_http_headers(&data);
+        let headers = parse_http_headers(&data,&PacketType::Request);
 
         match headers {
             Ok((transfer_type, offset)) => {
-                assert_eq!(HttpParseState::Others, transfer_type);
+                assert_eq!(HttpParseState::OtherRequest, transfer_type);
                 assert_eq!(120, offset);
             }
 
@@ -196,7 +196,7 @@ mod unit_test {
             48, 46, 48, 13, 10, 13, 10];
 
 
-        let headers = parse_http_headers(&data);
+        let headers = parse_http_headers(&data, &PacketType::Request);
 
         match headers {
             Ok((transfer_type, offset)) => {
@@ -223,7 +223,7 @@ mod unit_test {
             110, 103, 58, 32, 99, 104, 117, 110, 107, 101, 100, 13, 10, 13, 10];
 
 
-        let headers = parse_http_headers(&data);
+        let headers = parse_http_headers(&data, &PacketType::Request);
 
         match headers {
             Ok((transfer_type, offset)) => {
