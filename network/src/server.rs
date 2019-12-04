@@ -12,8 +12,7 @@ use self::protocol::packet::Version::Socks5;
 use std::io::{Error, Write, ErrorKind};
 use std::collections::VecDeque;
 use self::protocol::packet::CmdType::Connect;
-use std::ptr::null;
-
+use crate::http::*;
 
 struct DstAddress {
     ip: IpAddr,
@@ -171,9 +170,17 @@ impl ChildHandler {
                 // destroy connections
                 let data = self.receive_buffer.as_slice();
                 let str = String::from_utf8_lossy(data);
-                println!("http content size:{}", data.len());
+                let len =
+                    println!("http content size:{}", data.len());
                 println!("content:{:?}", str);
 
+                let end =
+                    get_end_of_http_packet(data, PacketType::Request, false)?;
+
+                let mut forward_data = Vec::<u8>::new();
+                forward_data.copy_from_slice(&data[0..end]);
+
+                self.write_to_buffer(forward_data, true);
 
                 Err("request finish err".to_string())
             }
@@ -357,7 +364,7 @@ impl ChildHandler {
 
         let data = encode_dst_service_reply(dst_reply)?;
 
-        self.write_to_buffer(data, true)
+        self.write_to_buffer(data, false)
     }
 
     pub fn print_receive_buf_size(self) {
