@@ -70,7 +70,7 @@ mod unit_test {
 
         match result {
             Ok((address)) => {
-                assert_eq!(513, address);
+                assert_eq!(258, address);
             }
 
             Err(e) => unreachable!()

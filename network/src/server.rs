@@ -58,6 +58,7 @@ fn transfer_address(address: String, address_type: &AddressType)
                 Ok(list) => Ok(list),
                 Err(e) => Err("err when parse domain.".to_string())
             }?;
+            println!("dst ip:{:?}", ips.first());
             Ok(*ips.first().unwrap())
         }
         AddressType::Ipv6 => Err("ipv6 not support in this version.".to_string())
@@ -170,22 +171,27 @@ impl ChildHandler {
                 // destroy connections
                 let data = self.receive_buffer.as_slice();
                 let str = String::from_utf8_lossy(data);
-                let len =
-                    println!("http content size:{}", data.len());
+                println!("http content size:{}", data.len());
                 println!("content:{:?}", str);
 
                 let end =
                     get_end_of_http_packet(data, PacketType::Request, false)?;
 
-                let mut forward_data = Vec::<u8>::new();
-                forward_data.copy_from_slice(&data[0..end]);
+                println!("end:{}", end);
+                let forward_data = Vec::<u8>::from(&data[0..end]);
 
-                self.write_to_buffer(forward_data, true);
+                self.write_to_buffer(forward_data, true)?;
 
-                Err("request finish err".to_string())
+                self.stage = ReceiveContent;
+                Ok(end)
             }
             ServerStage::ReceiveContent => {
                 // end
+                let data = self.dst_receive_buffer.as_slice();
+                let str = String::from_utf8_lossy(data);
+                println!("http content size:{}", data.len());
+                println!("content:{:?}", str);
+
                 Err("receive content err".to_string())
             }
 
@@ -245,7 +251,7 @@ impl ChildHandler {
         let address_type = request.address_type();
         let address = request.address();
         let port = request.port();
-
+        println!("proxy_port:{}", port);
         // save address:port
         let address_copy = String::from(&address);
         let dst_address = transfer_address(address_copy, address_type)?;
@@ -305,8 +311,12 @@ impl ChildHandler {
         }
     }
 
-    pub fn clear_send_buffer(&mut self) {
-        let buffer = &mut self.send_buffer;
+    pub fn clear_send_buffer(&mut self, is_proxy: bool) {
+        let mut buffer = match is_proxy {
+            false => &mut self.send_buffer,
+            true => &mut self.dst_send_buffer,
+        };
+        //let buffer = &mut self.send_buffer;
         loop {
             if buffer.is_empty() {
                 break;
@@ -344,15 +354,21 @@ impl ChildHandler {
         Ok(1)
     }
 
-    pub fn write_to_socket(&mut self, socket: &mut TcpStream) -> Result<usize, String> {
-        let buffer = &self.send_buffer;
+    pub fn write_to_socket(&mut self, socket: &mut TcpStream, is_proxy: bool)
+                           -> Result<usize, String> {
+        let buffer = match is_proxy {
+            false => &self.send_buffer,
+            true => &self.dst_send_buffer,
+        };
+
+        //let buffer = &self.send_buffer;
 
         let data = buffer.as_slice();
         let size = data.len();
         println!("send data size:{:?}", size);
         socket.write_all(data);
 
-        self.clear_send_buffer();
+        self.clear_send_buffer(is_proxy);
 
         Ok(size)
     }

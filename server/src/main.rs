@@ -12,11 +12,6 @@ use mio::net::TcpStream;
 use std::net::Shutdown;
 use network::tokens::Tokens;
 
-enum ReceiveType {
-    Proxy,
-    Server,
-}
-
 fn main() {
     let mut address = Vec::<u8>::new();
     address.push(127);
@@ -50,8 +45,6 @@ fn main() {
     let mut sockets_map = HashMap::<Token, TcpStream>::new();
     // child_socket => proxy_socket
     let mut proxy_map = HashMap::<Token, Token>::new();
-
-    let mut count = 0;
 
     let mut buffer = [0 as u8; 1024];
 
@@ -98,7 +91,7 @@ fn main() {
                 }
                 token if event.readiness().is_readable() => {
                     // communicate with local browser
-                    let mut handler = children_map.get_mut(&token).unwrap();
+                    // let mut handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
 
                     // proxy socket read
@@ -107,9 +100,16 @@ fn main() {
                         Some(server) => true,
                     };
 
+                    let mut handler = match proxy_map.get(&token) {
+                        None => children_map.get_mut(&token).unwrap(),
+                        Some(child_token) => children_map.get_mut(&child_token).unwrap(),
+                    };
+
                     if handler.before_dst_request()
                         && handler.is_dst_token_empty() {
-                        handler.set_dst_token(token_generator.next());
+                        let proxy_token = token_generator.next();
+                        println!("proxy-token:{:?}", proxy_token.0);
+                        handler.set_dst_token(proxy_token);
                     }
 
                     loop {
@@ -127,9 +127,8 @@ fn main() {
                             }
                             Ok(size) => {
                                 println!("size:{:?}", size);
-
                                 for i in 0..size {
-                                    println!("{:?}", buffer[i]);
+                                    println!("{:?},", buffer[i]);
                                     handler.receive_u8_data(buffer[i], is_proxy);
                                     buffer[i] = 0;
                                 }
@@ -157,10 +156,12 @@ fn main() {
                                 sockets_map.insert(proxy_token.clone(), proxy_socket);
                                 proxy_map.insert(proxy_token.clone(), server_token.clone());
 
+                                // first register write event
+                                println!("in after dst request-proxy_token:{:?}", proxy_token);
                                 poll.register(sockets_map.get(proxy_token).unwrap()
-                                                , proxy_token.clone()
-                                                , Ready::readable()
-                                                , PollOpt::edge());
+                                              , *proxy_token
+                                              , Ready::writable()
+                                              , PollOpt::edge());
                             }
 
                             poll.reregister(sockets_map.get(&token).unwrap(), token
@@ -178,14 +179,24 @@ fn main() {
                     };
                 }
                 token if event.readiness().is_writable() => {
-                    println!("in write.");
-                    let child_handler = children_map.get_mut(&token).unwrap();
+                    println!("in write, token:{}", token.0);
+                    // let child_handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
 
-                    let size = child_handler.write_to_socket(socket);
+                    //let size = child_handler.write_to_socket(socket);
 
+                    // proxy socket read
+                    let is_proxy = match proxy_map.get(&token) {
+                        None => false,
+                        Some(server) => true,
+                    };
 
-                    match child_handler.write_to_socket(socket) {
+                    let mut child_handler = match proxy_map.get(&token) {
+                        None => children_map.get_mut(&token).unwrap(),
+                        Some(child_token) => children_map.get_mut(&child_token).unwrap(),
+                    };
+
+                    match child_handler.write_to_socket(socket, is_proxy) {
                         Ok(size) => {
                             println!("write size:{}", size);
                             poll.reregister(sockets_map.get(&token).unwrap(), token

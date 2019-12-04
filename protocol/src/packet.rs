@@ -250,10 +250,10 @@ pub fn get_ipv6_from_bytes(bytes: &[u8]) -> Result<String, &'static str> {
 
 pub fn get_port(bytes: &[u8]) -> Result<u16, &'static str> {
     let len = bytes.len();
-    let first = bytes[0].clone();
-    let second = bytes[1].clone();
+    let high = bytes[0].clone();
+    let low = bytes[1].clone();
 
-    let port = (first as u16 | (second as u16) << 8);
+    let port = (low as u16 | (high as u16) << 8);
 
     Ok(port)
 }
