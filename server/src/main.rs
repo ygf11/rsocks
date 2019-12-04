@@ -101,9 +101,10 @@ fn main() {
                     let mut handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
 
-                    let receive_type = match proxy_map.get(&token) {
-                        None => ReceiveType::Server,
-                        Some(server) => ReceiveType::Proxy,
+                    // proxy socket read
+                    let is_proxy = match proxy_map.get(&token) {
+                        None => false,
+                        Some(server) => true,
                     };
 
                     if handler.before_dst_request()
@@ -129,11 +130,7 @@ fn main() {
 
                                 for i in 0..size {
                                     println!("{:?}", buffer[i]);
-                                    // todo server/proxy
-                                    // match receive_type {
-                                    //    ReceiveType::Proxy =>
-                                   // }
-                                    handler.receive_u8_data(buffer[i]);
+                                    handler.receive_u8_data(buffer[i], is_proxy);
                                     buffer[i] = 0;
                                 }
                             }

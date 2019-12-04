@@ -9,9 +9,9 @@ mod unit_test {
     fn handle_init_test() {
         let mut child_handler = ChildHandler::new_test(&Token(0));
         // let bytes = &[5, 1, 0];
-        child_handler.receive_u8_data(5);
-        child_handler.receive_u8_data(1);
-        child_handler.receive_u8_data(0);
+        child_handler.receive_u8_data(5, false);
+        child_handler.receive_u8_data(1, false);
+        child_handler.receive_u8_data(0, false);
 
         let size = child_handler.handle_init_stage();
 
@@ -24,7 +24,7 @@ mod unit_test {
     }
 
     #[test]
-    fn set_token_success(){
+    fn set_token_success() {
         let mut child_handler = ChildHandler::new_test(&Token(0));
 
         child_handler.set_dst_token(Token(1));
@@ -38,7 +38,7 @@ mod unit_test {
     }
 
     #[test]
-    fn is_dst_token_empty_true(){
+    fn is_dst_token_empty_true() {
         let mut child_handler = ChildHandler::new_test(&Token(0));
         let empty = child_handler.is_dst_token_empty();
 
@@ -46,7 +46,7 @@ mod unit_test {
     }
 
     #[test]
-    fn is_dst_token_empty_false(){
+    fn is_dst_token_empty_false() {
         let mut child_handler = ChildHandler::new_test(&Token(0));
         child_handler.set_dst_token(Token(1));
         let empty = child_handler.is_dst_token_empty();
@@ -55,7 +55,7 @@ mod unit_test {
     }
 
     #[test]
-    fn test_generate_token(){
+    fn test_generate_token() {
         let mut tokens = Tokens::new();
         let token = tokens.next();
 

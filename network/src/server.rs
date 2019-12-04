@@ -319,8 +319,12 @@ impl ChildHandler {
         Ok(size)
     }
 
-    pub fn receive_u8_data(&mut self, data: u8) -> Result<usize, &str> {
-        let mut buffer = &mut self.receive_buffer;
+    pub fn receive_u8_data(&mut self, data: u8, is_proxy: bool) -> Result<usize, &str> {
+        let mut buffer = match is_proxy {
+            false => &mut self.receive_buffer,
+            true => &mut self.dst_receive_buffer,
+        };
+        //let mut buffer = &mut self.receive_buffer;
         // println!("receive_buffer len:{}", buffer.len());
         buffer.push(data);
 
@@ -358,7 +362,7 @@ impl ChildHandler {
         self.stage == RequestFinish
     }
 
-    pub fn after_dst_request(&self) -> bool{
+    pub fn after_dst_request(&self) -> bool {
         self.stage == ReceiveContent
     }
 
@@ -378,7 +382,7 @@ impl ChildHandler {
         self.dst_token.as_ref()
     }
 
-    pub fn get_proxy_socket(&mut self) -> Option<TcpStream>{
+    pub fn get_proxy_socket(&mut self) -> Option<TcpStream> {
         self.dst_socket.take()
     }
 }
