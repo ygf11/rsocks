@@ -343,4 +343,13 @@ mod unit_test {
             _ => unreachable!()
         }
     }
+
+    #[test]
+    fn parse_chunk_size_success(){
+        let data = [49 as u8, 100, 102, 49];
+        let chunk_size = parse_chunk_size(&data);
+
+
+        assert_eq!(7665, chunk_size)
+    }
 }

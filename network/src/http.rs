@@ -185,3 +185,41 @@ pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<usize, String
         false => Err("data not enough when read content-util-socket-close.".to_string())
     }
 }
+
+
+pub fn parse_chunk(data:&[u8]) -> Result<usize, String>{
+    let (line, first_offset)= parse_line(data)?;
+    let raw_data = &data[0..first_offset];
+
+
+    Err("err".to_string())
+}
+
+pub fn parse_trailer(data:&[u8]) -> Result<usize, String>{
+    Err("err".to_string())
+}
+
+pub fn parse_chunk_size(data:&[u8]) -> usize{
+    let total = data.len();
+    let mut sum = 0 as usize;
+    let mut base = 1 as usize;
+
+    // todo skip other chars
+    for i in 0..total {
+        let index = total - i - 1;
+        let hex = data[index];
+
+        if hex >= 48 && hex <= 57 {
+            let num = (hex - 48) as usize;
+            sum = sum + num * base;
+        }
+
+        if hex >= 97 && hex <= 102 {
+            let num = (hex - 87) as usize;
+            sum = sum + num * base;
+        }
+        base = base * 16;
+    }
+
+    sum
+}
