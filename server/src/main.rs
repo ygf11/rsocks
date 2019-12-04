@@ -198,6 +198,7 @@ fn main() {
 
                     match child_handler.write_to_socket(socket, is_proxy) {
                         Ok(size) => {
+                            println!("local port:{:?}", socket.local_addr());
                             println!("write size:{}", size);
                             poll.reregister(sockets_map.get(&token).unwrap(), token
                                             , Ready::readable()

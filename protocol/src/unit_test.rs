@@ -214,7 +214,7 @@ mod unit_test {
     fn encode_dst_service_reply_success() {
         let reply = DstServiceReply::new(Version::Socks5
                                          , ReplyType::Success, AddressType::Ipv4
-                                         ,"127.0.0.1".to_string(), 1024);
+                                         ,"127.0.0.1".to_string(), 258);
 
         let data = encode_dst_service_reply(reply);
 
@@ -230,8 +230,8 @@ mod unit_test {
                 assert_eq!(0, bytes[5]);
                 assert_eq!(0, bytes[6]);
                 assert_eq!(1, bytes[7]);
-                assert_eq!(0, bytes[8]);
-                assert_eq!(4, bytes[9]);
+                assert_eq!(1, bytes[8]);
+                assert_eq!(2, bytes[9]);
             }
 
             Err(err) => unreachable!()
@@ -265,7 +265,7 @@ mod unit_test {
     fn  encode_dst_service_request_success(){
         let request = DstServiceRequest::new(
             Version::Socks5, CmdType::Connect, 0
-            , AddressType::Ipv4,"127.0.0.1".to_string(), 1025);
+            , AddressType::Ipv4,"127.0.0.1".to_string(), 258);
 
         let data = encode_dst_service_request(request);
 
@@ -282,7 +282,7 @@ mod unit_test {
                 assert_eq!(0, bytes[6]);
                 assert_eq!(1, bytes[7]);
                 assert_eq!(1, bytes[8]);
-                assert_eq!(4, bytes[9]);
+                assert_eq!(2, bytes[9]);
             }
 
             _ => unreachable!()
@@ -293,7 +293,7 @@ mod unit_test {
     fn  encode_dst_request_with_domain_success(){
         let request = DstServiceRequest::new(
             Version::Socks5, CmdType::Connect, 0
-            , AddressType::Domain,"127.0.0.1".to_string(), 1025);
+            , AddressType::Domain,"127.0.0.1".to_string(), 80);
 
         let data = encode_dst_service_request(request);
 
@@ -316,8 +316,8 @@ mod unit_test {
                 assert_eq!(46, bytes[11]);
                 assert_eq!(49, bytes[12]);
 
-                assert_eq!(1, bytes[13]);
-                assert_eq!(4, bytes[14]);
+                assert_eq!(0, bytes[13]);
+                assert_eq!(80, bytes[14]);
             }
 
             _ => unreachable!()

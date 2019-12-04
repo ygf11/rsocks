@@ -186,13 +186,18 @@ impl ChildHandler {
                 Ok(end)
             }
             ServerStage::ReceiveContent => {
-                // end
+                // send response data to client
                 let data = self.dst_receive_buffer.as_slice();
                 let str = String::from_utf8_lossy(data);
                 println!("http content size:{}", data.len());
                 println!("content:{:?}", str);
 
-                Err("receive content err".to_string())
+                let response = Vec::<u8>::from(data);
+                self.write_to_buffer(response, true);
+
+                self.stage = ServerStage::ContentFinish;
+                Ok(0)
+                //Err("receive content err".to_string())
             }
 
             _ => Err("unreachable err".to_string())

@@ -277,8 +277,8 @@ pub fn encode_dst_service_request(request: DstServiceRequest) -> Result<Vec<u8>,
     let port = request.port;
     let low_bit = port.bitand(0x00FF) as u8;
     let high_bit = (port >> 8) as u8;
-    data.push(low_bit);
     data.push(high_bit);
+    data.push(low_bit);
 
     Ok(data)
 }
@@ -381,8 +381,8 @@ pub fn encode_dst_service_reply(dst_reply: DstServiceReply) -> Result<Vec<u8>, &
     let port = dst_reply.port;
     let low_bit = port.bitand(0x00FF) as u8;
     let high_bit = (port >> 8) as u8;
-    data.push(low_bit);
     data.push(high_bit);
+    data.push(low_bit);
 
     Ok(data)
 }
