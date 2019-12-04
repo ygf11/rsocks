@@ -167,12 +167,14 @@ impl ChildHandler {
                 Ok(size)
             }
             ServerStage::RequestFinish => {
-                // receive proxy packets
+                // receive proxy-content
                 // destroy connections
                 let data = self.receive_buffer.as_slice();
                 let str = String::from_utf8_lossy(data);
                 println!("http content size:{}", data.len());
                 println!("content:{:?}", str);
+
+
                 Err("request finish err".to_string())
             }
             ServerStage::ReceiveContent => {
@@ -214,7 +216,7 @@ impl ChildHandler {
         self.clear_receive_buffer(3);
 
         // Ok(data.len())
-        self.write_to_buffer(data)
+        self.write_to_buffer(data, false)
     }
 
     pub fn parse_auth_select_request(&self) -> Result<AuthSelectRequest, String> {
@@ -280,7 +282,7 @@ impl ChildHandler {
 
         self.clear_receive_buffer(address_len + 6);
 
-        self.write_to_buffer(data)
+        self.write_to_buffer(data, false)
     }
 
     pub fn clear_receive_buffer(&mut self, size: u8) {
@@ -307,8 +309,12 @@ impl ChildHandler {
         }
     }
 
-    pub fn write_to_buffer(&mut self, data: Vec<u8>) -> Result<usize, String> {
-        let mut buffer = &mut self.send_buffer;
+    pub fn write_to_buffer(&mut self, data: Vec<u8>, is_proxy: bool) -> Result<usize, String> {
+        let mut buffer = match is_proxy {
+            false => &mut self.send_buffer,
+            true => &mut self.dst_send_buffer,
+        };
+        //let mut buffer = &mut self.send_buffer;
 
         let size: usize = data.len();
 
@@ -351,7 +357,7 @@ impl ChildHandler {
 
         let data = encode_dst_service_reply(dst_reply)?;
 
-        self.write_to_buffer(data)
+        self.write_to_buffer(data, true)
     }
 
     pub fn print_receive_buf_size(self) {
