@@ -186,20 +186,39 @@ pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<usize, String
     }
 }
 
-
-pub fn parse_chunk(data:&[u8]) -> Result<usize, String>{
-    let (line, first_offset)= parse_line(data)?;
+pub fn parse_chunk(data: &[u8]) -> Result<(bool, usize), String> {
+    let (line, first_offset) = parse_line(data)?;
     let raw_data = &data[0..first_offset];
+    let chunk_size = parse_chunk_size(raw_data);
 
+    if chunk_size == 0 {
+        let offset = parse_chunk_end(&data[first_offset + 2..])?;
+        return Ok((true, offset + first_offset + 4));
+    }
 
-    Err("err".to_string())
+    let end_pos = first_offset + chunk_size + 2;
+    if data.len() < end_pos + 2 {
+        return Ok((false, 0));
+    }
+
+    let first_end = data[end_pos];
+    let second_end = data[end_pos + 1];
+
+    if first_end != CR || second_end != LF {
+        return Err("chunk end is not correct.".to_string());
+    }
+
+    Ok((true, end_pos + 2))
 }
 
-pub fn parse_trailer(data:&[u8]) -> Result<usize, String>{
-    Err("err".to_string())
+
+pub fn parse_chunk_end(data: &[u8]) -> Result<usize, String> {
+    let (line, offset) = parse_line(data)?;
+
+    Ok(offset)
 }
 
-pub fn parse_chunk_size(data:&[u8]) -> usize{
+pub fn parse_chunk_size(data: &[u8]) -> usize {
     let total = data.len();
     let mut sum = 0 as usize;
     let mut base = 1 as usize;
