@@ -290,7 +290,7 @@ mod unit_test {
         let result = read_with_length(&data, 10);
 
         match result {
-            Ok(offset) => {
+            Ok(HttpResult::End(offset)) => {
                 assert_eq!(10, offset);
             }
 
@@ -312,8 +312,8 @@ mod unit_test {
         let result = read_with_length(&data, 150);
 
         match result {
-            Err(msg) => {
-                assert_eq!("data is not enough when read with content-length.", msg);
+            Ok(result) => {
+                assert_eq!(HttpResult::DataNotEnough, result);
             }
 
             _ => unreachable!()
@@ -326,7 +326,7 @@ mod unit_test {
         let result = read_util_close(&data, true);
 
         match result {
-            Ok(size) => assert_eq!(4, size),
+            Ok(HttpResult::End(size)) => assert_eq!(4, size),
             _ => unreachable!()
         }
     }
@@ -337,8 +337,8 @@ mod unit_test {
         let result = read_util_close(&data, false);
 
         match result {
-            Err(msg) => {
-                assert_eq!("data not enough when read content-util-socket-close.".to_string(), msg)
+            Ok(result) => {
+                assert_eq!(HttpResult::DataNotEnough, result);
             }
             _ => unreachable!()
         }
@@ -362,7 +362,7 @@ mod unit_test {
         let result = parse_chunk(&data);
 
         match result {
-            Ok((false, end)) => {
+            Ok(Kind::Continue(end)) => {
                 assert_eq!(end, 41);
             }
             _ => unreachable!()
@@ -376,7 +376,7 @@ mod unit_test {
         let result = parse_chunk(&data);
 
         match result {
-            Ok((true, end)) => {
+            Ok(Kind::End(end)) => {
                 assert_eq!(end, 5);
             }
             _ => unreachable!()
@@ -395,5 +395,9 @@ mod unit_test {
 
             _ => unreachable!()
         }
+    }
+
+    fn get_end_of_chunks_success(){
+
     }
 }

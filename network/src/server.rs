@@ -174,16 +174,16 @@ impl ChildHandler {
                 println!("http content size:{}", data.len());
                 println!("content:{:?}", str);
 
-                let end =
+                //let end =
                     get_end_of_http_packet(data, PacketType::Request, false)?;
 
-                println!("end:{}", end);
-                let forward_data = Vec::<u8>::from(&data[0..end]);
+                //println!("end:{}", end);
+                //let forward_data = Vec::<u8>::from(&data[0..end]);
 
-                self.write_to_buffer(forward_data, true)?;
+                //self.write_to_buffer(forward_data, true)?;
 
                 self.stage = ReceiveContent;
-                Ok(end)
+                Ok(0)
             }
             ServerStage::ReceiveContent => {
                 // send response data to client
@@ -193,7 +193,8 @@ impl ChildHandler {
                 println!("content:{:?}", str);
 
                 let response = Vec::<u8>::from(data);
-                self.write_to_buffer(response, true);
+                self.write_to_buffer(response, false);
+
 
                 self.stage = ServerStage::ContentFinish;
                 Ok(0)

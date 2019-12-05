@@ -11,6 +11,19 @@ static LF: u8 = 10;
 static CONTENT_LENGTH: &'static str = "content-length";
 
 #[derive(Debug, PartialEq)]
+pub enum HttpResult {
+    End(usize),
+    DataNotEnough,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Kind {
+    End(usize),
+    DataNotEnough,
+    Continue(usize),
+}
+
+#[derive(Debug, PartialEq)]
 pub enum HttpParseState {
     OtherRequest,
     OtherResponse,
@@ -34,7 +47,7 @@ pub enum PacketType {
 }
 
 pub fn get_end_of_http_packet(data: &[u8], packet_type: PacketType, socket_closed: bool)
-                              -> Result<usize, String> {
+                              -> Result<HttpResult, String> {
     // 1. parse initial line
     // 2. parse http headers
     // 3. receive util end
@@ -47,8 +60,8 @@ pub fn get_end_of_http_packet(data: &[u8], packet_type: PacketType, socket_close
     let pos = initial_offset + headers_offset;
     let starter = &data[pos..];
     match transfer_type {
-        TransferEncoding => Ok(0),
-        OtherRequest => Ok(pos),
+        TransferEncoding => Ok(HttpResult::End(0)),
+        OtherRequest => Ok(HttpResult::End(pos)),
         OtherResponse => read_util_close(starter, socket_closed),
         ContentLength(size) => read_with_length(starter, size),
     }
@@ -162,44 +175,60 @@ pub fn parse_line(data: &[u8]) -> Result<(String, usize), String> {
 }
 
 /// read content in content_length
-pub fn read_with_length(data: &[u8], total: usize) -> Result<usize, String> {
+pub fn read_with_length(data: &[u8], total: usize) -> Result<HttpResult, String> {
     let mut to_read = total;
     let len = data.len();
 
     if len < total {
-        return Err("data is not enough when read with content-length.".to_string());
+        return Ok(HttpResult::DataNotEnough);
     }
 
-    Ok(total)
+    Ok(HttpResult::End(total))
 }
 
 /// read content in transfer-encoding
-pub fn read_with_transfer_encoding(data: &[u8]) -> Result<usize, String> {
+pub fn read_with_transfer_encoding(data: &[u8]) -> Result<HttpResult, String> {
     // todo receive dst response
-    Err("err".to_string())
+    let mut offset = 0 as usize;
+    loop {
+        let result = parse_chunk(&data[offset..])?;
+        let len = match result {
+            Kind::End(offset) => {
+                return Ok(HttpResult::End(offset));
+            }
+            Kind::Continue(offset) => offset,
+            Kind::DataNotEnough => {
+                return Ok(HttpResult::DataNotEnough)
+            },
+        };
+
+        offset = offset + len;
+    }
+
+    //Ok(end)
 }
 
 /// read util socket closed
-pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<usize, String> {
+pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<HttpResult, String> {
     match socket_closed {
-        true => Ok(data.len()),
-        false => Err("data not enough when read content-util-socket-close.".to_string())
+        true => Ok(HttpResult::End(data.len())),
+        false => Ok(HttpResult::DataNotEnough),
     }
 }
 
-pub fn parse_chunk(data: &[u8]) -> Result<(bool, usize), String> {
+pub fn parse_chunk(data: &[u8]) -> Result<Kind, String> {
     let (line, first_offset) = parse_line(data)?;
     let raw_data = &data[0..first_offset - 2];
     let chunk_size = parse_chunk_size(raw_data);
 
     if chunk_size == 0 {
         let offset = parse_chunk_end(&data[first_offset..])?;
-        return Ok((true, offset + first_offset));
+        return Ok(Kind::End(offset + first_offset));
     }
 
     let end_pos = first_offset + chunk_size;
     if data.len() < end_pos + 2 {
-        return Ok((false, 0));
+        return Ok(Kind::DataNotEnough);
     }
 
     let first_end = data[end_pos];
@@ -209,7 +238,7 @@ pub fn parse_chunk(data: &[u8]) -> Result<(bool, usize), String> {
         return Err("chunk end is not correct.".to_string());
     }
 
-    Ok((false, end_pos + 2))
+    Ok(Kind::Continue(end_pos + 2))
 }
 
 
