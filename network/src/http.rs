@@ -133,6 +133,7 @@ pub fn parse_http_header(line: &String) -> Result<(String, String), String> {
     Ok((name, value))
 }
 
+
 pub fn parse_line(data: &[u8]) -> Result<(String, usize), String> {
     let start = 0;
     let mut cur = 0;
@@ -188,15 +189,15 @@ pub fn read_util_close(data: &[u8], socket_closed: bool) -> Result<usize, String
 
 pub fn parse_chunk(data: &[u8]) -> Result<(bool, usize), String> {
     let (line, first_offset) = parse_line(data)?;
-    let raw_data = &data[0..first_offset];
+    let raw_data = &data[0..first_offset - 2];
     let chunk_size = parse_chunk_size(raw_data);
 
     if chunk_size == 0 {
-        let offset = parse_chunk_end(&data[first_offset + 2..])?;
-        return Ok((true, offset + first_offset + 4));
+        let offset = parse_chunk_end(&data[first_offset..])?;
+        return Ok((true, offset + first_offset));
     }
 
-    let end_pos = first_offset + chunk_size + 2;
+    let end_pos = first_offset + chunk_size;
     if data.len() < end_pos + 2 {
         return Ok((false, 0));
     }
@@ -208,7 +209,7 @@ pub fn parse_chunk(data: &[u8]) -> Result<(bool, usize), String> {
         return Err("chunk end is not correct.".to_string());
     }
 
-    Ok((true, end_pos + 2))
+    Ok((false, end_pos + 2))
 }
 
 

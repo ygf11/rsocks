@@ -345,11 +345,55 @@ mod unit_test {
     }
 
     #[test]
-    fn parse_chunk_size_success(){
+    fn parse_chunk_size_success() {
         let data = [49 as u8, 100, 102, 49];
         let chunk_size = parse_chunk_size(&data);
 
 
         assert_eq!(7665, chunk_size)
+    }
+
+    #[test]
+    fn parse_chunk_not_end() {
+        let data = [50 as u8, 51, 13, 10, 84, 104, 105, 115, 32, 105, 115
+            , 32, 116, 104, 101, 32, 100, 97, 116, 97, 32, 105, 110, 32, 116
+            , 104, 101, 32, 102, 105, 114, 115, 116, 32, 99, 104, 117, 110, 107, 13, 10];
+
+        let result = parse_chunk(&data);
+
+        match result {
+            Ok((false, end)) => {
+                assert_eq!(end, 41);
+            }
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_chunk_to_end_success() {
+        let data = [48 as u8, 13, 10, 13, 10];
+
+        let result = parse_chunk(&data);
+
+        match result {
+            Ok((true, end)) => {
+                assert_eq!(end, 5);
+            }
+            _ => unreachable!()
+        }
+    }
+
+    #[test]
+    fn parse_chunk_end_success() {
+       let data = [13 as u8, 10];
+       let result = parse_chunk_end(&data);
+
+        match result {
+            Ok(offset) => {
+                assert_eq!(2, offset);
+            }
+
+            _ => unreachable!()
+        }
     }
 }
