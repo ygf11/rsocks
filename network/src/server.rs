@@ -174,16 +174,20 @@ impl ChildHandler {
                 println!("http content size:{}", data.len());
                 println!("content:{:?}", str);
 
-                //let end =
-                    get_end_of_http_packet(data, PacketType::Request, false)?;
+                let end = match get_end_of_http_packet(
+                    data, PacketType::Request, false) {
+                    Ok(HttpResult::End(offset)) => offset,
+                    Ok(HttpResult::DataNotEnough) => return Ok(0),
+                    Err(msg) => return Err(msg)
+                };
 
-                //println!("end:{}", end);
-                //let forward_data = Vec::<u8>::from(&data[0..end]);
+                println!("end:{}", end);
+                let forward_data = Vec::<u8>::from(&data[0..end]);
 
-                //self.write_to_buffer(forward_data, true)?;
+                self.write_to_buffer(forward_data, true)?;
 
                 self.stage = ReceiveContent;
-                Ok(0)
+                Ok(end)
             }
             ServerStage::ReceiveContent => {
                 // send response data to client
@@ -192,13 +196,26 @@ impl ChildHandler {
                 println!("http content size:{}", data.len());
                 println!("content:{:?}", str);
 
-                let response = Vec::<u8>::from(data);
+                let end = match get_end_of_http_packet(
+                    data, PacketType::Response, false) {
+                    Ok(HttpResult::End(offset)) => offset,
+                    Ok(HttpResult::DataNotEnough) => return Ok(0),
+                    Err(msg) => return Err(msg)
+                };
+
+                println!("reponse end:{:?}", end);
+
+                let response = Vec::<u8>::from(&data[0..end]);
                 self.write_to_buffer(response, false);
 
 
                 self.stage = ServerStage::ContentFinish;
                 Ok(0)
                 //Err("receive content err".to_string())
+            }
+            ServerStage::ContentFinish => {
+                // do nothing
+                Ok(0)
             }
 
             _ => Err("unreachable err".to_string())
@@ -419,6 +436,9 @@ impl ChildHandler {
 
     pub fn get_proxy_socket(&mut self) -> Option<TcpStream> {
         self.dst_socket.take()
+    }
+    pub fn dst_send_buffer_empty(&self) -> bool {
+        !self.dst_send_buffer.is_empty()
     }
 }
 

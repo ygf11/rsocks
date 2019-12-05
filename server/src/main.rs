@@ -105,12 +105,14 @@ fn main() {
                         Some(child_token) => children_map.get_mut(&child_token).unwrap(),
                     };
 
-                    if handler.before_dst_request()
-                        && handler.is_dst_token_empty() {
-                        let proxy_token = token_generator.next();
-                        println!("proxy-token:{:?}", proxy_token.0);
-                        handler.set_dst_token(proxy_token);
-                    }
+                    let init_proxy_env = handler.before_dst_request()
+                        && handler.is_dst_token_empty();
+                    //if handler.before_dst_request()
+                    //    && handler.is_dst_token_empty() {
+                    //    token_generator.next()
+                    // println!("proxy-token:{:?}", proxy_token.0);
+                    //handler.set_dst_token(proxy_token);
+                    //};
 
                     loop {
                         println!("read data:");
@@ -146,23 +148,23 @@ fn main() {
                     match handler.handle() {
                         // TODO  add proxy socket logic
                         Ok(size) => {
-                            if handler.after_dst_request() {
-                                // 1. add to sockets_map
-                                // 2. add to proxy_map
-                                // 3. add to poll
-                                let proxy_socket = handler.get_proxy_socket().unwrap();
-                                let proxy_token = handler.get_dst_token().unwrap();
-                                let server_token = handler.get_token();
-                                sockets_map.insert(proxy_token.clone(), proxy_socket);
-                                proxy_map.insert(proxy_token.clone(), server_token.clone());
+                            //if handler.after_dst_request() {
+                            // 1. add to sockets_map
+                            // 2. add to proxy_map
+                            // 3. add to poll
+                            //let proxy_socket = handler.get_proxy_socket().unwrap();
+                            //let proxy_token = handler.get_dst_token().unwrap();
+                            //let server_token = handler.get_token();
+                            //sockets_map.insert(proxy_token.clone(), proxy_socket);
+                            //proxy_map.insert(proxy_token.clone(), server_token.clone());
 
-                                // first register write event
-                                println!("in after dst request-proxy_token:{:?}", proxy_token);
-                                poll.register(sockets_map.get(proxy_token).unwrap()
-                                              , *proxy_token
-                                              , Ready::writable()
-                                              , PollOpt::edge());
-                            }
+                            // first register write event
+                            //println!("in after dst request-proxy_token:{:?}", proxy_token);
+                            //poll.register(sockets_map.get(proxy_token).unwrap()
+                            //              , *proxy_token
+                            //              , Ready::writable()
+                            //              , PollOpt::edge());
+                            //}
 
                             poll.reregister(sockets_map.get(&token).unwrap(), token
                                             , Ready::writable()
@@ -177,6 +179,31 @@ fn main() {
                             socket.shutdown(Shutdown::Both);
                         }
                     };
+
+                    if init_proxy_env {
+                        let proxy_socket = handler.get_proxy_socket().unwrap();
+                        let proxy_token = &token_generator.next();
+                        let server_token = handler.get_token();
+                        sockets_map.insert(proxy_token.clone(), proxy_socket);
+                        proxy_map.insert(proxy_token.clone(), server_token.clone());
+
+                        // first register write event
+                        println!("in after dst request-proxy_token:{:?}", proxy_token);
+                        poll.register(sockets_map.get(proxy_token).unwrap()
+                                      , *proxy_token
+                                      , Ready::writable()
+                                      , PollOpt::edge());
+                    }
+
+
+                    // 当child_handler当写buffer不为空时，为proxy_socket注册写事件
+                    //if !is_proxy
+                    //    && !handler.dst_send_buffer_empty() {
+                    //    poll.
+                    //        reregister(sockets_map.get(&token).unwrap(), token
+                    //                   , Ready::writable()
+                    //                   , PollOpt::edge());
+                    //}
                 }
                 token if event.readiness().is_writable() => {
                     println!("in write, token:{}", token.0);

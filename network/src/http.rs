@@ -60,7 +60,7 @@ pub fn get_end_of_http_packet(data: &[u8], packet_type: PacketType, socket_close
     let pos = initial_offset + headers_offset;
     let starter = &data[pos..];
     match transfer_type {
-        TransferEncoding => Ok(HttpResult::End(0)),
+        TransferEncoding => read_with_transfer_encoding(starter),
         OtherRequest => Ok(HttpResult::End(pos)),
         OtherResponse => read_util_close(starter, socket_closed),
         ContentLength(size) => read_with_length(starter, size),
@@ -193,8 +193,8 @@ pub fn read_with_transfer_encoding(data: &[u8]) -> Result<HttpResult, String> {
     loop {
         let result = parse_chunk(&data[offset..])?;
         let len = match result {
-            Kind::End(offset) => {
-                return Ok(HttpResult::End(offset));
+            Kind::End(chunk_size) => {
+                return Ok(HttpResult::End(offset+chunk_size));
             }
             Kind::Continue(offset) => offset,
             Kind::DataNotEnough => {
@@ -203,6 +203,7 @@ pub fn read_with_transfer_encoding(data: &[u8]) -> Result<HttpResult, String> {
         };
 
         offset = offset + len;
+        println!("chunk size");
     }
 
     //Ok(end)
