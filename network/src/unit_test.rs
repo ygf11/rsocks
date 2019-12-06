@@ -16,7 +16,7 @@ mod unit_test {
         let size = child_handler.handle_init_stage();
 
         match size {
-            Ok(len) => {
+            Ok(Some(len)) => {
                 assert_eq!(2, len);
             }
             _ => unreachable!()

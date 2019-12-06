@@ -58,11 +58,11 @@ fn main() {
 
     loop {
         while !terminate_tokens.is_empty() {
+            println!("terminate size:{:?}", terminate_tokens.len());
             let token = terminate_tokens.pop().unwrap();
             children_map.remove(&token);
             sockets_map.remove(&token);
         }
-
 
         poll.poll(&mut events, Some(Duration::from_millis(100)));
 
@@ -75,7 +75,7 @@ fn main() {
                             Ok((socket, _)) => {
                                 let token = token_generator.next();
                                 poll.register(&socket, token
-                                              , Ready::readable()
+                                              , Ready::readable()|Ready::writable()
                                               , PollOpt::edge());
                                 // 先move到map中，然后进行borrow --- 抛错
                                 // 可以先borrow,再move
@@ -90,6 +90,7 @@ fn main() {
                     }
                 }
                 token if event.readiness().is_readable() => {
+                    println!("read data token:{:?}", token.0);
                     // communicate with local browser
                     // let mut handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
@@ -105,30 +106,24 @@ fn main() {
                         Some(child_token) => children_map.get_mut(&child_token).unwrap(),
                     };
 
-                    let init_proxy_env = handler.before_dst_request()
-                        && handler.is_dst_token_empty();
-                    //if handler.before_dst_request()
-                    //    && handler.is_dst_token_empty() {
-                    //    token_generator.next()
-                    // println!("proxy-token:{:?}", proxy_token.0);
-                    //handler.set_dst_token(proxy_token);
-                    //};
+                    //let init_proxy_env = handler.before_dst_request()
+                    //    && handler.is_dst_token_empty();
+                    let before_dst_request = handler.before_dst_request();
+                    let empty_dst_token = handler.is_dst_token_empty();
+                    let init_proxy_env = before_dst_request && empty_dst_token;
 
                     loop {
                         println!("read data:");
                         let read = socket.read(&mut buffer);
                         match read {
                             Ok(0) => {
-                                println!("in read 0");
-                                // sockets_map.remove(&token);
-                                // children_map.remove(&token);
-                                terminate_tokens.push(token);
-                                socket.shutdown(Shutdown::Both);
-                                println!("in 0.");
                                 break;
                             }
                             Ok(size) => {
                                 println!("size:{:?}", size);
+                                if size == 0 {
+                                    continue;
+                                }
                                 for i in 0..size {
                                     println!("{:?},", buffer[i]);
                                     handler.receive_u8_data(buffer[i], is_proxy);
@@ -148,27 +143,42 @@ fn main() {
                     match handler.handle() {
                         // TODO  add proxy socket logic
                         Ok(size) => {
-                            //if handler.after_dst_request() {
-                            // 1. add to sockets_map
-                            // 2. add to proxy_map
-                            // 3. add to poll
-                            //let proxy_socket = handler.get_proxy_socket().unwrap();
-                            //let proxy_token = handler.get_dst_token().unwrap();
-                            //let server_token = handler.get_token();
-                            //sockets_map.insert(proxy_token.clone(), proxy_socket);
-                            //proxy_map.insert(proxy_token.clone(), server_token.clone());
 
-                            // first register write event
-                            //println!("in after dst request-proxy_token:{:?}", proxy_token);
-                            //poll.register(sockets_map.get(proxy_token).unwrap()
-                            //              , *proxy_token
-                            //              , Ready::writable()
-                            //              , PollOpt::edge());
+                            // write to client socket
+                            if size != 0{
+                                match handler.forward_to_proxy(){
+                                    false => {
+                                        let socket = sockets_map.get_mut(&token).unwrap();
+                                        handler.write_to_socket(socket, false);
+
+                                        handler.try_enable_forward();
+                                    }
+                                    true => {
+                                        match is_proxy{
+                                            true =>{
+                                                handler.move_to_client();
+                                                let child_token = proxy_map.get(&token).unwrap();
+                                                let socket = sockets_map.get_mut(&child_token).unwrap();
+                                                handler.write_to_socket(socket, false);
+                                            }
+
+                                            false => {
+                                                handler.move_to_proxy();
+                                                let dst_token = handler.get_dst_token().unwrap();
+                                                let socket = sockets_map.get_mut(&dst_token).unwrap();
+                                                handler.write_to_socket(socket, true);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            //if size != 0{
+                            //    poll.reregister(sockets_map.get(&token).unwrap(), token
+                            //                    , Ready::writable()
+                            //                    , PollOpt::edge());
                             //}
 
-                            poll.reregister(sockets_map.get(&token).unwrap(), token
-                                            , Ready::writable()
-                                            , PollOpt::edge());
                         }
                         Err(msg) => {
                             // terminate
@@ -180,7 +190,7 @@ fn main() {
                         }
                     };
 
-                    if init_proxy_env {
+                    if init_proxy_env && !handler.proxy_inited() {
                         let proxy_socket = handler.get_proxy_socket().unwrap();
                         let proxy_token = &token_generator.next();
                         let server_token = handler.get_token();
@@ -191,19 +201,13 @@ fn main() {
                         println!("in after dst request-proxy_token:{:?}", proxy_token);
                         poll.register(sockets_map.get(proxy_token).unwrap()
                                       , *proxy_token
-                                      , Ready::writable()
+                                      , Ready::readable() | Ready::writable()
                                       , PollOpt::edge());
+
+                        handler.set_proxy_inited(true);
+                        handler.set_dst_token(proxy_token.clone());
                     }
 
-
-                    // 当child_handler当写buffer不为空时，为proxy_socket注册写事件
-                    //if !is_proxy
-                    //    && !handler.dst_send_buffer_empty() {
-                    //    poll.
-                    //        reregister(sockets_map.get(&token).unwrap(), token
-                    //                   , Ready::writable()
-                    //                   , PollOpt::edge());
-                    //}
                 }
                 token if event.readiness().is_writable() => {
                     println!("in write, token:{}", token.0);
@@ -225,6 +229,7 @@ fn main() {
 
                     match child_handler.write_to_socket(socket, is_proxy) {
                         Ok(size) => {
+                            println!("write all");
                             println!("local port:{:?}", socket.local_addr());
                             println!("write size:{}", size);
                             poll.reregister(sockets_map.get(&token).unwrap(), token

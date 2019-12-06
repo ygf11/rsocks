@@ -15,10 +15,10 @@ pub struct AuthSelectRequest {
     methods: Vec<AuthType>,
 }
 
-pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest, String> {
+pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<Option<AuthSelectRequest>, String> {
     let len = data.len();
     if len < 2 {
-        return Err("data not enough.".to_string());
+        return Ok(None);
     }
 
     // version
@@ -31,7 +31,7 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
     // verify data len
     let total: usize = usize::from(2 + n_methods);
     if data.len() < total {
-        return Err("data length not right.".to_string());
+        return Ok(None);
     }
 
     let mut i = 0;
@@ -50,7 +50,7 @@ pub fn parse_auth_select_request_packet(data: &[u8]) -> Result<AuthSelectRequest
         methods,
     };
 
-    Ok(result)
+    Ok(Some(result))
 }
 
 pub fn encode_auth_select_request(request: AuthSelectRequest) -> Result<Vec<u8>, &'static str> {
@@ -101,10 +101,10 @@ pub struct AuthSelectReply {
     method: AuthType,
 }
 
-pub fn parse_auth_select_reply_packet(data: &[u8]) -> Result<AuthSelectReply, &'static str> {
+pub fn parse_auth_select_reply_packet(data: &[u8]) -> Result<Option<AuthSelectReply>, &'static str> {
     let len = data.len();
     if len != 2 {
-        return Err("auth select reply packet length not right.");
+        return Ok(None);
     }
 
     let version = parse_version(data.get(0).cloned())?;
@@ -115,7 +115,7 @@ pub fn parse_auth_select_reply_packet(data: &[u8]) -> Result<AuthSelectReply, &'
         method,
     };
 
-    Ok(result)
+    Ok(Some(result))
 }
 
 pub fn encode_auth_select_reply(reply: &AuthSelectReply) -> Result<Vec<u8>, &'static str> {
@@ -156,10 +156,10 @@ pub struct DstServiceRequest {
     port: u16,
 }
 
-pub fn parse_dst_service_request(data: &[u8]) -> Result<(DstServiceRequest, u8), &str> {
+pub fn parse_dst_service_request(data: &[u8]) -> Result<Option<(DstServiceRequest, u8)>, &str> {
     let len = data.len();
     if len < 4 {
-        return Err("data not enough in dst request packet.");
+        return Ok(None);
     }
 
     let version = parse_version(data.get(0).cloned())?;
@@ -170,9 +170,17 @@ pub fn parse_dst_service_request(data: &[u8]) -> Result<(DstServiceRequest, u8),
     };
 
     let address_type = parse_address_type(data.get(3).cloned())?;
-    let (address, address_len) = parse_dst_address(&data[4..data.len()],
-                                                   &address_type)?;
+    let (address, address_len) = match parse_dst_address(&data[4..data.len()],
+                                                         &address_type)? {
+        Some(result) => result,
+        None => return Ok(None)
+    };
     let len: usize = usize::from(address_len);
+
+    if data.len() < len + 6 {
+        return Ok(None);
+    }
+
     let port = get_port(data.get(4 + len..6 + len).unwrap())?;
     let result = DstServiceRequest {
         version,
@@ -183,40 +191,40 @@ pub fn parse_dst_service_request(data: &[u8]) -> Result<(DstServiceRequest, u8),
         port,
     };
 
-    Ok((result, address_len))
+    Ok(Some((result, address_len)))
 }
 
-pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<(String, u8), &'static str> {
+pub fn parse_dst_address(data: &[u8], addr_type: &AddressType) -> Result<Option<(String, u8)>, &'static str> {
     let len = data.len();
     match addr_type {
         Ipv4 => {
             if len < 4 {
-                return Err("data not enough in ipv4 type.");
+                return Ok(None);
             }
             let address = get_ipv4_from_bytes(data.get(0..4).unwrap())?;
             //let port: u16 = get_port(data.get(4..6).unwrap())?;
-            Ok((address, 4))
+            Ok((Some((address, 4))))
         }
         Ipv6 => {
             if len < 16 {
-                return Err("data not enough in ipv6 type.");
+                return Ok(None);
             }
             let address = get_ipv6_from_bytes(data.get(0..16).unwrap())?;
             //let port = get_port(data.get(16..18).unwrap())?;
             //let port: u16 = (data[17] as u16 | (data[18] as u16) << 8);
-            Ok((address, 16))
+            Ok(Some((address, 16)))
         }
         Domain => {
             let addr_len = usize::from(data.get(0).cloned().unwrap());
             if len < addr_len {
-                return Err("data not enough in domain type.");
+                return Ok(None);
             }
             let byte_array = data.get(1..addr_len + 1).unwrap();
             let address = get_domain_from_bytes(byte_array)?;
             //let port = get_port(data.get(addr_len + 1..addr_len + 3).unwrap())?;
             // let port: u16 = (data[addr_len + 1] as u16 | (data[addr_len + 2] as u16) << 8);
             let len = addr_len + 1;
-            Ok((address, len as u8))
+            Ok(Some((address, len as u8)))
         }
     }
 }
@@ -327,10 +335,10 @@ pub struct DstServiceReply {
     port: u16,
 }
 
-pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static str> {
+pub fn parse_dst_service_reply(data: &[u8]) -> Result<Option<DstServiceReply>, &'static str> {
     let len = data.len();
     if len < 4 {
-        return Err("data not enough in dst reply packet.");
+        return Ok(None);
     }
 
     let version = parse_version(data.get(0).cloned())?;
@@ -341,8 +349,12 @@ pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static 
     };
 
     let address_type = parse_address_type(data.get(3).cloned())?;
-    let (address, address_len) = parse_dst_address(&data[4..data.len()],
-                                                   &address_type)?;
+    let (address, address_len) = match parse_dst_address(&data[4..data.len()],
+                                                         &address_type)? {
+        Some(result) => result,
+        None => return Ok(None)
+    };
+
     let len: usize = usize::from(address_len);
     let port = get_port(data.get(4 + len..6 + len).unwrap())?;
     let result = DstServiceReply {
@@ -354,7 +366,7 @@ pub fn parse_dst_service_reply(data: &[u8]) -> Result<DstServiceReply, &'static 
         port,
     };
 
-    Ok(result)
+    Ok(Some(result))
 }
 
 pub fn encode_dst_service_reply(dst_reply: DstServiceReply) -> Result<Vec<u8>, &'static str> {
@@ -570,7 +582,7 @@ pub fn parse_version(version: Option<u8>) -> Result<Version, &'static str> {
 pub fn encode_version(version: &Version) -> Result<u8, &'static str> {
     match version {
         Version::Socks5 => Ok(5),
-        // never
+// never
         Version::Others => Err("proxy only support version 5.")
     }
 }

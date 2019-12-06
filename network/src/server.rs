@@ -13,6 +13,7 @@ use std::io::{Error, Write, ErrorKind};
 use std::collections::VecDeque;
 use self::protocol::packet::CmdType::Connect;
 use crate::http::*;
+use std::thread::sleep;
 
 struct DstAddress {
     ip: IpAddr,
@@ -119,6 +120,8 @@ pub struct ChildHandler {
     dst_send_buffer: Vec<u8>,
     dst_receive_buffer: Vec<u8>,
     dst_socket: Option<TcpStream>,
+    proxy_inited: bool,
+    forward: bool,
 }
 
 impl ChildHandler {
@@ -132,6 +135,8 @@ impl ChildHandler {
             dst_receive_buffer: Vec::<u8>::new(),
             dst_send_buffer: Vec::<u8>::new(),
             dst_socket: None,
+            proxy_inited: false,
+            forward: false,
         }
     }
     pub fn new(token: &Token) -> ChildHandler {
@@ -144,6 +149,8 @@ impl ChildHandler {
             dst_receive_buffer: Vec::<u8>::new(),
             dst_send_buffer: Vec::<u8>::new(),
             dst_socket: None,
+            proxy_inited: false,
+            forward: false,
         }
     }
 
@@ -151,67 +158,45 @@ impl ChildHandler {
         let stage = &mut self.stage;
         match stage {
             ServerStage::Init => {
-                let mut size;
-                size = self.handle_init_stage()?;
-                println!("init stage packet:{:?}", self.send_buffer);
+                match self.handle_init_stage()? {
+                    Some(size) => {
+                        println!("init stage packet:{:?}", self.send_buffer);
 
-                self.stage = ServerStage::AuthSelectFinish;
-                Ok(size)
+                        self.stage = ServerStage::AuthSelectFinish;
+                        Ok(size)
+                    }
+                    None => Ok(0)
+                }
             }
             ServerStage::AuthSelectFinish => {
                 // parse packet and send
-                let size = self.handle_dst_request()?;
+                let size = match self.handle_dst_request()? {
+                    Some(result) => result,
+                    None => return Ok(0),
+                };
+
                 println!("request stage packet:{:?}", self.send_buffer);
 
                 self.stage = RequestFinish;
-                Ok(size)
+                // self.forward = true;
+                //self.proxy_inited = true;
+                Ok(2)
             }
             ServerStage::RequestFinish => {
                 // receive proxy-content
-                // destroy connections
-                let data = self.receive_buffer.as_slice();
-                let str = String::from_utf8_lossy(data);
-                println!("http content size:{}", data.len());
-                println!("content:{:?}", str);
+                // self.stage = ReceiveContent;
+                //let data = self.receive_buffer.as_slice();
+                //let proxy_data = Vec::<u8>::from(data);
+                //self.write_to_buffer(proxy_data, true);
+                //self.receive_buffer.clear();
 
-                let end = match get_end_of_http_packet(
-                    data, PacketType::Request, false) {
-                    Ok(HttpResult::End(offset)) => offset,
-                    Ok(HttpResult::DataNotEnough) => return Ok(0),
-                    Err(msg) => return Err(msg)
-                };
+                //self.proxy_inited = true;
 
-                println!("end:{}", end);
-                let forward_data = Vec::<u8>::from(&data[0..end]);
-
-                self.write_to_buffer(forward_data, true)?;
-
-                self.stage = ReceiveContent;
-                Ok(end)
+                Ok(2)
             }
             ServerStage::ReceiveContent => {
                 // send response data to client
-                let data = self.dst_receive_buffer.as_slice();
-                let str = String::from_utf8_lossy(data);
-                println!("http content size:{}", data.len());
-                println!("content:{:?}", str);
-
-                let end = match get_end_of_http_packet(
-                    data, PacketType::Response, false) {
-                    Ok(HttpResult::End(offset)) => offset,
-                    Ok(HttpResult::DataNotEnough) => return Ok(0),
-                    Err(msg) => return Err(msg)
-                };
-
-                println!("reponse end:{:?}", end);
-
-                let response = Vec::<u8>::from(&data[0..end]);
-                self.write_to_buffer(response, false);
-
-
-                self.stage = ServerStage::ContentFinish;
                 Ok(0)
-                //Err("receive content err".to_string())
             }
             ServerStage::ContentFinish => {
                 // do nothing
@@ -226,8 +211,11 @@ impl ChildHandler {
         self.stage = Init;
     }
 
-    pub fn handle_init_stage(&mut self) -> Result<usize, String> {
-        let request = self.parse_auth_select_request()?;
+    pub fn handle_init_stage(&mut self) -> Result<Option<usize>, String> {
+        let request = match self.parse_auth_select_request()? {
+            Some(request) => request,
+            None => return Ok(None),
+        };
         check_version_type(request.version())?;
 
         let n_methods = request.n_methods();
@@ -252,10 +240,13 @@ impl ChildHandler {
         self.clear_receive_buffer(3);
 
         // Ok(data.len())
-        self.write_to_buffer(data, false)
+        match self.write_to_buffer(data, false) {
+            Ok(size) => Ok(Some(size)),
+            Err(msg) => Err(msg)
+        }
     }
 
-    pub fn parse_auth_select_request(&self) -> Result<AuthSelectRequest, String> {
+    pub fn parse_auth_select_request(&self) -> Result<Option<AuthSelectRequest>, String> {
         let cloned = self.receive_buffer.clone();
         let data = cloned.as_slice();
         // parse packet and send
@@ -263,9 +254,12 @@ impl ChildHandler {
         Ok(request)
     }
 
-    pub fn handle_dst_request(&mut self) -> Result<usize, String> {
+    pub fn handle_dst_request(&mut self) -> Result<Option<usize>, String> {
         let data = self.receive_buffer.as_slice();
-        let (request, address_len) = parse_dst_service_request(data)?;
+        let (request, address_len) = match parse_dst_service_request(data)? {
+            Some(result) => result,
+            None => return Ok(None),
+        };
 
         check_version_type(request.version())?;
 
@@ -318,7 +312,10 @@ impl ChildHandler {
 
         self.clear_receive_buffer(address_len + 6);
 
-        self.write_to_buffer(data, false)
+        match self.write_to_buffer(data, false) {
+            Ok(size) => Ok(Some(size)),
+            Err(msg) => Err(msg),
+        }
     }
 
     pub fn clear_receive_buffer(&mut self, size: u8) {
@@ -384,16 +381,48 @@ impl ChildHandler {
             true => &self.dst_send_buffer,
         };
 
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+
         //let buffer = &self.send_buffer;
 
         let data = buffer.as_slice();
         let size = data.len();
         println!("send data size:{:?}", size);
-        socket.write_all(data);
+        println!("send data:{:?}", data);
+        let mut total = 0;
+        loop {
+            let size = match socket.write(&data[total..]) {
+                Ok(size) => Ok(size),
+                Err(e) => Err("err when write socket"),
+            }?;
 
-        self.clear_send_buffer(is_proxy);
+            if size == 0 {
+                break;
+            }
+            total = total + size;
+        }
+
+        self.clear_send_buffer_with_size(total, is_proxy);
 
         Ok(size)
+    }
+
+    pub fn clear_send_buffer_with_size(&mut self, size: usize, is_proxy: bool) {
+        let mut len = size.clone();
+        let buffer = match is_proxy {
+            false => &mut self.send_buffer,
+            true => &mut self.dst_send_buffer,
+        };
+        loop {
+            if len == 0 {
+                break;
+            }
+
+            buffer.remove(0);
+            len = len - 1;
+        }
     }
 
     fn buffer_dst_reply(&mut self, reply: ReplyType, address_type: AddressType
@@ -411,7 +440,7 @@ impl ChildHandler {
     }
 
     pub fn before_dst_request(&self) -> bool {
-        self.stage == RequestFinish
+        self.stage == ServerStage::AuthSelectFinish
     }
 
     pub fn after_dst_request(&self) -> bool {
@@ -439,6 +468,52 @@ impl ChildHandler {
     }
     pub fn dst_send_buffer_empty(&self) -> bool {
         !self.dst_send_buffer.is_empty()
+    }
+
+    pub fn proxy_inited(&self) -> bool {
+        self.proxy_inited
+    }
+
+    pub fn forward_to_proxy(&self) -> bool {
+        self.forward
+    }
+
+    pub fn try_enable_forward(&mut self) {
+        if self.stage == ServerStage::RequestFinish {
+            self.forward = true;
+        }
+    }
+
+    pub fn set_proxy_inited(&mut self, inited: bool) {
+        self.proxy_inited = inited;
+    }
+
+    pub fn set_proxy_token(&mut self, dst_token:Token){
+        self.dst_token = Some(dst_token);
+    }
+
+    pub fn move_to_proxy(&mut self){
+        let data = self.receive_buffer.as_slice();
+        let size: usize = data.len();
+        let copy = Vec::<u8>::from(data);
+
+        for i in 0..copy.len() {
+            self.dst_send_buffer.push(*data.get(i).unwrap());
+        }
+
+        self.receive_buffer.clear();
+    }
+
+    pub fn move_to_client(&mut self){
+        let data = self.dst_receive_buffer.as_slice();
+        let size: usize = data.len();
+        let copy = Vec::<u8>::from(data);
+
+        for i in 0..copy.len() {
+            self.send_buffer.push(*data.get(i).unwrap());
+        }
+
+        self.dst_receive_buffer.clear();
     }
 }
 

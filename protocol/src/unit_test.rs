@@ -83,12 +83,11 @@ mod unit_test {
         let result = parse_dst_address(&bytes, &Ipv4);
 
         match result {
-            Ok((address, address_len)) => {
+            Ok(Some(((address, address_len)))) => {
                 assert_eq!("49.50.55.46", address);
                 assert_eq!(4, address_len);
             }
-
-            Err(e) => unreachable!()
+            _ => unreachable!()
         }
     }
 
@@ -101,11 +100,11 @@ mod unit_test {
         let result = parse_dst_address(&bytes, &Domain);
 
         match result {
-            Ok((address, address_len)) => {
+            Ok(Some((address, address_len))) => {
                 assert_eq!("www.baidu.com", address);
                 assert_eq!(14, address_len);
             }
-            Err(e) => unreachable!()
+            _ => unreachable!()
         }
     }
 
@@ -116,7 +115,7 @@ mod unit_test {
         let result = parse_len_and_string(&bytes);
 
         match result {
-            Ok((len, name)) => {
+            Ok((len, name))=> {
                 assert_eq!(13 as u8, len);
                 assert_eq!("mio-and-tokio", name);
             }
@@ -214,11 +213,11 @@ mod unit_test {
     fn encode_dst_service_reply_success() {
         let reply = DstServiceReply::new(Version::Socks5
                                          , ReplyType::Success, AddressType::Ipv4
-                                         ,"127.0.0.1".to_string(), 258);
+                                         , "127.0.0.1".to_string(), 258);
 
         let data = encode_dst_service_reply(reply);
 
-        match data{
+        match data {
             Ok(buffer) => {
                 let bytes = buffer.as_slice();
                 println!("bytes:{:?}", bytes);
@@ -239,12 +238,12 @@ mod unit_test {
     }
 
     #[test]
-    fn encode_auth_select_request_success(){
+    fn encode_auth_select_request_success() {
         let mut auth_types = Vec::<AuthType>::new();
         auth_types.push(AuthType::Non);
         auth_types.push(AuthType::NamePassword);
         let request = AuthSelectRequest::new(Version::Socks5
-                                             ,2, auth_types);
+                                             , 2, auth_types);
 
         let data = encode_auth_select_request(request);
 
@@ -262,10 +261,10 @@ mod unit_test {
     }
 
     #[test]
-    fn  encode_dst_service_request_success(){
+    fn encode_dst_service_request_success() {
         let request = DstServiceRequest::new(
             Version::Socks5, CmdType::Connect, 0
-            , AddressType::Ipv4,"127.0.0.1".to_string(), 258);
+            , AddressType::Ipv4, "127.0.0.1".to_string(), 258);
 
         let data = encode_dst_service_request(request);
 
@@ -290,10 +289,10 @@ mod unit_test {
     }
 
     #[test]
-    fn  encode_dst_request_with_domain_success(){
+    fn encode_dst_request_with_domain_success() {
         let request = DstServiceRequest::new(
             Version::Socks5, CmdType::Connect, 0
-            , AddressType::Domain,"127.0.0.1".to_string(), 80);
+            , AddressType::Domain, "127.0.0.1".to_string(), 80);
 
         let data = encode_dst_service_request(request);
 
@@ -323,8 +322,4 @@ mod unit_test {
             _ => unreachable!()
         }
     }
-
-
-
-
 }
