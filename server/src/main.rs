@@ -173,11 +173,6 @@ fn main() {
                                 }
                             }
 
-                            //if size != 0{
-                            //    poll.reregister(sockets_map.get(&token).unwrap(), token
-                            //                    , Ready::writable()
-                            //                    , PollOpt::edge());
-                            //}
 
                         }
                         Err(msg) => {
