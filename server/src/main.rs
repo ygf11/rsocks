@@ -46,7 +46,7 @@ fn main() {
     // child_socket => proxy_socket
     let mut proxy_map = HashMap::<Token, Token>::new();
 
-    let mut buffer = [0 as u8; 1024];
+    let mut buffer = [0 as u8; 1024*256];
 
     let mut terminate_tokens = Vec::<Token>::new();
 
