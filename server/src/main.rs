@@ -60,8 +60,42 @@ fn main() {
         while !terminate_tokens.is_empty() {
             println!("terminate size:{:?}", terminate_tokens.len());
             let token = terminate_tokens.pop().unwrap();
-            children_map.remove(&token);
-            sockets_map.remove(&token);
+            match proxy_map.get(&token){
+                // non-proxy
+                None => {
+                    let handler = match children_map.remove(&token){
+                        None => continue,
+                        Some(result) => result,
+                    };
+
+                    let socket = match sockets_map.remove(&token){
+                        None => continue,
+                        Some(result) => result,
+                    };
+
+                    poll.deregister(&socket);
+                    socket.shutdown(Shutdown::Both);
+
+                    let proxy_token = match handler.get_dst_token(){
+                        None => continue,
+                        Some(result) => result,
+                    };
+
+                    let proxy_socket = match sockets_map.remove(&proxy_token){
+                        None => continue,
+                        Some(result) => result,
+                    };
+
+                    poll.deregister(&proxy_socket);
+                    proxy_socket.shutdown(Shutdown::Both);
+                }
+
+                // proxy
+                Some(_) => {
+
+                }
+            }
+
         }
 
         poll.poll(&mut events, Some(Duration::from_millis(100)));
@@ -75,7 +109,7 @@ fn main() {
                             Ok((socket, _)) => {
                                 let token = token_generator.next();
                                 poll.register(&socket, token
-                                              , Ready::readable()|Ready::writable()
+                                              , Ready::readable() | Ready::writable()
                                               , PollOpt::edge());
                                 // 先move到map中，然后进行borrow --- 抛错
                                 // 可以先borrow,再move
@@ -103,7 +137,10 @@ fn main() {
 
                     let mut handler = match proxy_map.get(&token) {
                         None => children_map.get_mut(&token).unwrap(),
-                        Some(child_token) => children_map.get_mut(&child_token).unwrap(),
+                        Some(child_token) => {
+                            println!("in panic point:{:?}", token.0);
+                            children_map.get_mut(&child_token).unwrap()
+                        }
                     };
 
                     //let init_proxy_env = handler.before_dst_request()
@@ -112,11 +149,16 @@ fn main() {
                     let empty_dst_token = handler.is_dst_token_empty();
                     let init_proxy_env = before_dst_request && empty_dst_token;
 
+                    let mut close = false;
+
                     loop {
                         println!("read data:");
                         let read = socket.read(&mut buffer);
                         match read {
                             Ok(0) => {
+                                //
+                                close = true;
+                                terminate_tokens.push(token);
                                 break;
                             }
                             Ok(size) => {
@@ -125,7 +167,7 @@ fn main() {
                                     continue;
                                 }
                                 for i in 0..size {
-                                    println!("{:?},", buffer[i]);
+                                    // println!("{:?},", buffer[i]);
                                     handler.receive_u8_data(buffer[i], is_proxy);
                                     buffer[i] = 0;
                                 }
@@ -140,13 +182,17 @@ fn main() {
                         }
                     }
 
+                    if close {
+                        continue;
+                    }
                     match handler.handle() {
                         // TODO  add proxy socket logic
                         Ok(size) => {
 
                             // write to client socket
-                            if size != 0{
-                                match handler.forward_to_proxy(){
+                            if size != 0 {
+                                println!("in write to client socket:{:?}", token);
+                                match handler.forward_to_proxy() {
                                     false => {
                                         let socket = sockets_map.get_mut(&token).unwrap();
                                         handler.write_to_socket(socket, false);
@@ -154,8 +200,8 @@ fn main() {
                                         handler.try_enable_forward();
                                     }
                                     true => {
-                                        match is_proxy{
-                                            true =>{
+                                        match is_proxy {
+                                            true => {
                                                 handler.move_to_client();
                                                 let child_token = proxy_map.get(&token).unwrap();
                                                 let socket = sockets_map.get_mut(&child_token).unwrap();
@@ -172,8 +218,6 @@ fn main() {
                                     }
                                 }
                             }
-
-
                         }
                         Err(msg) => {
                             // terminate
@@ -202,7 +246,6 @@ fn main() {
                         handler.set_proxy_inited(true);
                         handler.set_dst_token(proxy_token.clone());
                     }
-
                 }
                 token if event.readiness().is_writable() => {
                     println!("in write, token:{}", token.0);
