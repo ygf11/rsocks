@@ -390,7 +390,7 @@ impl ChildHandler {
         let data = buffer.as_slice();
         let size = data.len();
         println!("send data size:{:?}", size);
-        println!("send data:{:?}", data);
+        //println!("send data:{:?}", data);
         let mut total = 0;
         loop {
             let size = match socket.write(&data[total..]) {
