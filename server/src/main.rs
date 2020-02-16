@@ -13,6 +13,14 @@ use std::net::Shutdown;
 use network::tokens::Tokens;
 
 fn main() {
+    let args:Vec<String> = std::env::args().collect();
+    if args.len() != 2 {
+        panic!("you have not specify network address and port!");
+    }
+
+    let address = args.get(0);
+    let port = args.get(1);
+
     let mut address = Vec::<u8>::new();
     address.push(127);
     address.push(0);
