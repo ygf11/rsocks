@@ -1,4 +1,5 @@
 # Rsocks
+Rsocks is a proxy-server which is based on socks5.
 
 # Features
 
