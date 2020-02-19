@@ -23,18 +23,6 @@ fn main() {
     let address = parse_address(args.get(1).unwrap());
     let port = parse_port(args.get(2).unwrap());
 
-    //let mut address = Vec::<u8>::new();
-    //address.push(127);
-    //address.push(0);
-    //address.push(0);
-    //address.push(1);
-    //let port: u16 = 10500;
-    for value in &address {
-        println!("{}", value);
-    }
-
-    println!("port: {}", &port);
-
     let mut server = ServerHandler::new(address, port);
 
     let token = match server.init() {
@@ -50,15 +38,20 @@ fn main() {
         }
     };
 
-    poll.register(server.listener().unwrap(), token
+    let res = poll.register(server.listener().unwrap(), token
                   , Ready::readable() | Ready::writable(), PollOpt::edge());
+    if res.is_err(){
+        panic!("bind to target address failed.");
+    }
 
+    println!("bind to target address success!");
 
     let mut events = Events::with_capacity(128);
 
     let mut children_map = HashMap::<Token, ChildHandler>::new();
 
     let mut sockets_map = HashMap::<Token, TcpStream>::new();
+
     // child_socket => proxy_socket
     let mut proxy_map = HashMap::<Token, Token>::new();
 
@@ -68,13 +61,9 @@ fn main() {
 
     let mut token_generator = Tokens::new();
 
-    // let mut buffer = ;
-
-    // let mut copy = Vec::<u8>::new();
 
     loop {
         while !terminate_tokens.is_empty() {
-            println!("terminate size:{:?}", terminate_tokens.len());
             let token = terminate_tokens.pop().unwrap();
             match proxy_map.get(&token) {
                 // non-proxy
@@ -137,9 +126,6 @@ fn main() {
                     }
                 }
                 token if event.readiness().is_readable() => {
-                    println!("read data token:{:?}", token.0);
-                    // communicate with local browser
-                    // let mut handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
 
                     // proxy socket read
@@ -151,13 +137,11 @@ fn main() {
                     let mut handler = match proxy_map.get(&token) {
                         None => children_map.get_mut(&token).unwrap(),
                         Some(child_token) => {
-                            println!("in panic point:{:?}", token.0);
+                            //println!("in panic point:{:?}", token.0);
                             children_map.get_mut(&child_token).unwrap()
                         }
                     };
 
-                    //let init_proxy_env = handler.before_dst_request()
-                    //    && handler.is_dst_token_empty();
                     let before_dst_request = handler.before_dst_request();
                     let empty_dst_token = handler.is_dst_token_empty();
                     let init_proxy_env = before_dst_request && empty_dst_token;
@@ -165,7 +149,6 @@ fn main() {
                     let mut close = false;
 
                     loop {
-                        println!("read data:");
                         let read = socket.read(&mut buffer);
                         match read {
                             Ok(0) => {
@@ -175,12 +158,10 @@ fn main() {
                                 break;
                             }
                             Ok(size) => {
-                                println!("size:{:?}", size);
                                 if size == 0 {
                                     continue;
                                 }
                                 for i in 0..size {
-                                    // println!("{:?},", buffer[i]);
                                     handler.receive_u8_data(buffer[i], is_proxy);
                                     buffer[i] = 0;
                                 }
@@ -189,7 +170,6 @@ fn main() {
                                 break;
                             }
                             Err(_) => {
-                                println!("in _");
                                 break;
                             }
                         }
@@ -204,7 +184,6 @@ fn main() {
 
                             // write to client socket
                             if size != 0 {
-                                println!("in write to client socket:{:?}", token);
                                 match handler.forward_to_proxy() {
                                     false => {
                                         let socket = sockets_map.get_mut(&token).unwrap();
@@ -236,8 +215,6 @@ fn main() {
                             // terminate
                             println!("read err msg:{:?}", msg);
                             terminate_tokens.push(token);
-                            // children_map.remove(&token);
-                            // sockets_map.remove(&token);
                             socket.shutdown(Shutdown::Both);
                         }
                     };
@@ -250,7 +227,6 @@ fn main() {
                         proxy_map.insert(proxy_token.clone(), server_token.clone());
 
                         // first register write event
-                        println!("in after dst request-proxy_token:{:?}", proxy_token);
                         poll.register(sockets_map.get(proxy_token).unwrap()
                                       , *proxy_token
                                       , Ready::readable() | Ready::writable()
@@ -261,13 +237,8 @@ fn main() {
                     }
                 }
                 token if event.readiness().is_writable() => {
-                    println!("in write, token:{}", token.0);
-                    // let child_handler = children_map.get_mut(&token).unwrap();
                     let socket = sockets_map.get_mut(&token).unwrap();
 
-                    //let size = child_handler.write_to_socket(socket);
-
-                    // proxy socket read
                     let is_proxy = match proxy_map.get(&token) {
                         None => false,
                         Some(server) => true,
@@ -280,9 +251,6 @@ fn main() {
 
                     match child_handler.write_to_socket(socket, is_proxy) {
                         Ok(size) => {
-                            println!("write all");
-                            println!("local port:{:?}", socket.local_addr());
-                            println!("write size:{}", size);
                             poll.reregister(sockets_map.get(&token).unwrap(), token
                                             , Ready::readable()
                                             , PollOpt::edge());
@@ -291,8 +259,6 @@ fn main() {
                             // terminate
                             println!("write err msg:{:?}", msg);
                             terminate_tokens.push(token);
-                            // children_map.remove(&token);
-                            // sockets_map.remove(&token);
                             socket.shutdown(Shutdown::Both);
                         }
                     };

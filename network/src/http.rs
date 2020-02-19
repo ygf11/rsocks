@@ -81,7 +81,6 @@ pub fn is_http_packet_finish(data: &[u8]) -> Result<bool, String> {
             return Ok(true);
         }
 
-        println!("line:{:?}", line);
     }
 
     Ok(true)
@@ -129,7 +128,6 @@ pub fn parse_http_headers(data: &[u8], packet_type: &PacketType)
             return Err("data not enough when parse http headers".to_string());
         }
 
-        println!("line:{:?}", header);
     }
 }
 
@@ -203,7 +201,6 @@ pub fn read_with_transfer_encoding(data: &[u8]) -> Result<HttpResult, String> {
         };
 
         offset = offset + len;
-        println!("chunk size");
     }
 
     //Ok(end)
